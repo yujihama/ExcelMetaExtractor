@@ -9,7 +9,6 @@ from openpyxl.utils import get_column_letter
 from typing import Dict, Any, List, Optional, Tuple
 from openai_helper import OpenAIHelper
 import traceback
-import re
 from pathlib import Path
 import tempfile
 
@@ -21,119 +20,157 @@ class ExcelMetadataExtractor:
         self.MAX_CELLS_PER_ANALYSIS = 100
         self.ns = {
             'a': 'http://schemas.openxmlformats.org/drawingml/2006/main',
-            'xdr': 'http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing'
+            'xdr': 'http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing',
+            'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
+            'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'
         }
 
-    def extract_drawing_info(self, sheet) -> List[Dict[str, Any]]:
+    def get_sheet_drawing_relations(self, excel_zip) -> Dict[str, str]:
+        """Get relationships between sheets and drawings from workbook.xml.rels"""
+        sheet_drawing_map = {}
+
+        try:
+            # xl/workbook.xmlからシート情報を取得
+            with excel_zip.open('xl/workbook.xml') as wb_xml:
+                wb_tree = ET.parse(wb_xml)
+                wb_root = wb_tree.getroot()
+
+                # シートIDとシート名の対応を取得
+                sheets = {}
+                for sheet in wb_root.findall('.//sheet', {'r': self.ns['r']}):
+                    sheet_id = sheet.get('sheetId')
+                    r_id = sheet.get(f'{{{self.ns["r"]}}}id')
+                    sheets[r_id] = sheet_id
+
+            # xl/_rels/workbook.xml.relsから関係性を解析
+            with excel_zip.open('xl/_rels/workbook.xml.rels') as rels_xml:
+                rels_tree = ET.parse(rels_xml)
+                rels_root = rels_tree.getroot()
+
+                # シートとターゲットの対応を取得
+                for rel in rels_root.findall('.//Relationship', {'': self.ns['r']}):
+                    r_id = rel.get('Id')
+                    if r_id in sheets:
+                        sheet_id = sheets[r_id]
+                        target = rel.get('Target')
+                        if target.startswith('/xl/'):
+                            target = target[1:]  # 先頭の'/'を削除
+                        elif not target.startswith('xl/'):
+                            target = f'xl/{target}'
+
+                        # シートごとの_rels/sheet*.xml.relsを確認
+                        sheet_rels_path = f"{os.path.splitext(target)[0]}.rels"
+                        try:
+                            with excel_zip.open(f'xl/worksheets/_rels/{os.path.basename(sheet_rels_path)}') as sheet_rels:
+                                sheet_rels_tree = ET.parse(sheet_rels)
+                                sheet_rels_root = sheet_rels_tree.getroot()
+
+                                # drawingへの参照を探す
+                                for sheet_rel in sheet_rels_root.findall('.//Relationship', {'': self.ns['r']}):
+                                    if 'drawing' in sheet_rel.get('Target', ''):
+                                        drawing_path = sheet_rel.get('Target').replace('..', 'xl')
+                                        sheet_drawing_map[sheet_id] = drawing_path
+                        except KeyError:
+                            # シートにdrawingがない場合はスキップ
+                            continue
+
+        except Exception as e:
+            print(f"Error getting sheet-drawing relations: {str(e)}\n{traceback.format_exc()}")
+
+        return sheet_drawing_map
+
+    def extract_drawing_info(self, sheet, excel_zip, drawing_path) -> List[Dict[str, Any]]:
         """Extract information about images and shapes from drawing.xml"""
         drawing_list = []
 
         try:
-            # シート名からdrawing*.xmlファイルを特定するための正規表現パターン
-            sheet_id_match = re.search(r'sheet(\d+)\.xml', sheet.path)
-            if not sheet_id_match:
-                print(f"Could not determine sheet ID for {sheet.title}")
-                return drawing_list
+            # drawing.xmlを解析
+            with excel_zip.open(drawing_path) as xml_file:
+                tree = ET.parse(xml_file)
+                root = tree.getroot()
 
-            # 一時ディレクトリを作成
-            with tempfile.TemporaryDirectory() as temp_dir:
-                # Excelファイルを一時的にZIPとして展開
-                temp_zip = os.path.join(temp_dir, 'temp.xlsx')
-                with open(temp_zip, 'wb') as f:
-                    self.file_obj.seek(0)
-                    f.write(self.file_obj.read())
+                # twoCellAnchorとoneCellAnchorを検索
+                anchors = root.findall('.//xdr:twoCellAnchor', self.ns) + \
+                         root.findall('.//xdr:oneCellAnchor', self.ns)
 
-                with zipfile.ZipFile(temp_zip, 'r') as excel_zip:
-                    # xl/drawings/drawing*.xmlファイルを検索
-                    drawing_files = [f for f in excel_zip.namelist() 
-                                   if f.startswith('xl/drawings/drawing') and f.endswith('.xml')]
+                for anchor in anchors:
+                    try:
+                        # 図形の位置情報を取得
+                        from_elem = anchor.find('.//xdr:from', self.ns)
+                        to_elem = anchor.find('.//xdr:to', self.ns) or \
+                                 anchor.find('.//xdr:ext', self.ns)  # oneCellAnchorの場合
 
-                    for drawing_file in drawing_files:
-                        # drawing.xmlを解析
-                        with excel_zip.open(drawing_file) as xml_file:
-                            tree = ET.parse(xml_file)
-                            root = tree.getroot()
+                        if from_elem is None:
+                            continue
 
-                            # twoCellAnchorとoneCellAnchorを検索
-                            anchors = root.findall('.//xdr:twoCellAnchor', self.ns) + \
-                                     root.findall('.//xdr:oneCellAnchor', self.ns)
+                        # 座標情報を取得
+                        from_col = int(from_elem.find('xdr:col', self.ns).text)
+                        from_row = int(from_elem.find('xdr:row', self.ns).text)
 
-                            for anchor in anchors:
-                                try:
-                                    # 図形の位置情報を取得
-                                    from_elem = anchor.find('.//xdr:from', self.ns)
-                                    to_elem = anchor.find('.//xdr:to', self.ns) or \
-                                             anchor.find('.//xdr:ext', self.ns)  # oneCellAnchorの場合
+                        if to_elem is not None:
+                            if anchor.tag.endswith('twoCellAnchor'):
+                                to_col = int(to_elem.find('xdr:col', self.ns).text)
+                                to_row = int(to_elem.find('xdr:row', self.ns).text)
+                            else:  # oneCellAnchor
+                                # cx, cyを使用して範囲を計算
+                                cx = int(to_elem.get('cx', '0'))
+                                cy = int(to_elem.get('cy', '0'))
+                                # 簡易的な変換（実際はより複雑な計算が必要）
+                                to_col = from_col + (cx // 100000)
+                                to_row = from_row + (cy // 100000)
+                        else:
+                            to_col = from_col + 1
+                            to_row = from_row + 1
 
-                                    if from_elem is None:
-                                        continue
+                        # 図形の種類と詳細情報を判定
+                        shape_type = "shape"
+                        shape_info = {}
 
-                                    # 座標情報を取得
-                                    from_col = int(from_elem.find('xdr:col', self.ns).text)
-                                    from_row = int(from_elem.find('xdr:row', self.ns).text)
+                        # 画像の場合
+                        pic = anchor.find('.//xdr:pic', self.ns)
+                        if pic is not None:
+                            shape_type = "image"
+                            blip = pic.find('.//a:blip', self.ns)
+                            if blip is not None:
+                                shape_info["image_ref"] = blip.get(f'{{{self.ns["r"]}}}embed')
 
-                                    if to_elem is not None:
-                                        if anchor.tag.endswith('twoCellAnchor'):
-                                            to_col = int(to_elem.find('xdr:col', self.ns).text)
-                                            to_row = int(to_elem.find('xdr:row', self.ns).text)
-                                        else:  # oneCellAnchor
-                                            # cx, cyを使用して範囲を計算
-                                            cx = int(to_elem.get('cx', '0'))
-                                            cy = int(to_elem.get('cy', '0'))
-                                            # 簡易的な変換（実際はより複雑な計算が必要）
-                                            to_col = from_col + (cx // 100000)
-                                            to_row = from_row + (cy // 100000)
-                                    else:
-                                        to_col = from_col + 1
-                                        to_row = from_row + 1
+                        # SmartArtの場合
+                        if anchor.find('.//a:graphicData[@uri="http://schemas.microsoft.com/office/drawing/2008/diagram"]', self.ns) is not None:
+                            shape_type = "smartart"
+                            # SmartArtの詳細情報を取得（可能な場合）
+                            shape_info["diagram_type"] = "smartart"
 
-                                    # 図形の種類を判定
-                                    shape_type = "shape"
-                                    shape_info = {}
+                        # グラフの場合
+                        chart = anchor.find('.//c:chart', self.ns)
+                        if chart is not None:
+                            shape_type = "chart"
+                            shape_info["chart_ref"] = chart.get(f'{{{self.ns["r"]}}}id')
 
-                                    # 画像の場合
-                                    pic = anchor.find('.//a:blip', self.ns)
-                                    if pic is not None:
-                                        shape_type = "image"
-                                        shape_info["image_ref"] = pic.get('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed')
+                        # 図形の名前と説明を取得
+                        shape_props = anchor.find('.//xdr:sp/xdr:nvSpPr/xdr:cNvPr', self.ns) or \
+                                    anchor.find('.//xdr:pic/xdr:nvPicPr/xdr:cNvPr', self.ns)
 
-                                    # SmartArtの場合
-                                    diagram = anchor.find('.//a:diagram', self.ns)
-                                    if diagram is not None:
-                                        shape_type = "smartart"
-                                        shape_info["diagram_type"] = diagram.get('type', 'unknown')
+                        if shape_props is not None:
+                            shape_info["name"] = shape_props.get('name', '')
+                            shape_info["description"] = shape_props.get('descr', '')
 
-                                    # グラフの場合
-                                    chart = anchor.find('.//c:chart', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
-                                    if chart is not None:
-                                        shape_type = "chart"
-                                        shape_info["chart_ref"] = chart.get('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id')
+                        drawing_info = {
+                            "type": shape_type,
+                            "range": f"{get_column_letter(from_col + 1)}{from_row + 1}:"
+                                    f"{get_column_letter(to_col + 1)}{to_row + 1}",
+                            "coordinates": {
+                                "from": {"col": from_col + 1, "row": from_row + 1},
+                                "to": {"col": to_col + 1, "row": to_row + 1}
+                            },
+                            **shape_info
+                        }
 
-                                    # 図形の名前と説明を取得
-                                    shape_props = anchor.find('.//xdr:sp/xdr:nvSpPr/xdr:cNvPr', self.ns) or \
-                                                anchor.find('.//xdr:pic/xdr:nvPicPr/xdr:cNvPr', self.ns)
+                        print(f"Found {shape_type} at {drawing_info['range']}")
+                        drawing_list.append(drawing_info)
 
-                                    if shape_props is not None:
-                                        shape_info["name"] = shape_props.get('name', '')
-                                        shape_info["description"] = shape_props.get('descr', '')
-
-                                    drawing_info = {
-                                        "type": shape_type,
-                                        "range": f"{get_column_letter(from_col + 1)}{from_row + 1}:"
-                                                f"{get_column_letter(to_col + 1)}{to_row + 1}",
-                                        "coordinates": {
-                                            "from": {"col": from_col + 1, "row": from_row + 1},
-                                            "to": {"col": to_col + 1, "row": to_row + 1}
-                                        },
-                                        **shape_info
-                                    }
-
-                                    print(f"Found {shape_type} at {drawing_info['range']}")
-                                    drawing_list.append(drawing_info)
-
-                                except Exception as e:
-                                    print(f"Error processing anchor in {drawing_file}: {str(e)}")
-                                    continue
+                    except Exception as e:
+                        print(f"Error processing anchor: {str(e)}")
+                        continue
 
         except Exception as e:
             print(f"Error extracting drawing info: {str(e)}\n{traceback.format_exc()}")
@@ -149,38 +186,55 @@ class ExcelMetadataExtractor:
         try:
             # まず画像・図形領域を検出
             print(f"\nProcessing drawings in sheet: {sheet.title}")
-            drawings = self.extract_drawing_info(sheet)
-            for drawing in drawings:
-                drawing_type = drawing["type"]  # "image", "shape", "smartart", "chart"
-                region_info = {
-                    "regionType": drawing_type,
-                    "type": drawing_type,
-                    "range": drawing["range"],
-                    "name": drawing.get("name", ""),
-                    "description": drawing.get("description", ""),
-                    "coordinates": drawing["coordinates"]
-                }
 
-                # 図形タイプ別の追加情報
-                if drawing_type == "image" and "image_ref" in drawing:
-                    region_info["image_ref"] = drawing["image_ref"]
-                elif drawing_type == "smartart" and "diagram_type" in drawing:
-                    region_info["diagram_type"] = drawing["diagram_type"]
-                elif drawing_type == "chart" and "chart_ref" in drawing:
-                    region_info["chart_ref"] = drawing["chart_ref"]
+            # 一時ディレクトリを作成してZipファイルを展開
+            with tempfile.TemporaryDirectory() as temp_dir:
+                temp_zip = os.path.join(temp_dir, 'temp.xlsx')
+                with open(temp_zip, 'wb') as f:
+                    self.file_obj.seek(0)
+                    f.write(self.file_obj.read())
 
-                regions.append(region_info)
-                print(f"Added {drawing_type} region: {region_info['range']}")
+                with zipfile.ZipFile(temp_zip, 'r') as excel_zip:
+                    # シートとdrawingの関連付けを取得
+                    sheet_drawing_map = self.get_sheet_drawing_relations(excel_zip)
 
-                # 図形が占める領域をprocessed_cellsに追加
-                from_col = drawing["coordinates"]["from"]["col"]
-                from_row = drawing["coordinates"]["from"]["row"]
-                to_col = drawing["coordinates"]["to"]["col"]
-                to_row = drawing["coordinates"]["to"]["row"]
+                    # 現在のシートに対応するdrawingを探す
+                    sheet_index = str(self.workbook.sheetnames.index(sheet.title) + 1)
+                    if sheet_index in sheet_drawing_map:
+                        drawing_path = sheet_drawing_map[sheet_index]
+                        drawings = self.extract_drawing_info(sheet, excel_zip, drawing_path)
 
-                for r in range(from_row, to_row + 1):
-                    for c in range(from_col, to_col + 1):
-                        processed_cells.add(f"{get_column_letter(c)}{r}")
+                        for drawing in drawings:
+                            drawing_type = drawing["type"]  # "image", "shape", "smartart", "chart"
+                            region_info = {
+                                "regionType": drawing_type,
+                                "type": drawing_type,
+                                "range": drawing["range"],
+                                "name": drawing.get("name", ""),
+                                "description": drawing.get("description", ""),
+                                "coordinates": drawing["coordinates"]
+                            }
+
+                            # 図形タイプ別の追加情報
+                            if drawing_type == "image" and "image_ref" in drawing:
+                                region_info["image_ref"] = drawing["image_ref"]
+                            elif drawing_type == "smartart" and "diagram_type" in drawing:
+                                region_info["diagram_type"] = drawing["diagram_type"]
+                            elif drawing_type == "chart" and "chart_ref" in drawing:
+                                region_info["chart_ref"] = drawing["chart_ref"]
+
+                            regions.append(region_info)
+                            print(f"Added {drawing_type} region: {region_info['range']}")
+
+                            # 図形が占める領域をprocessed_cellsに追加
+                            from_col = drawing["coordinates"]["from"]["col"]
+                            from_row = drawing["coordinates"]["from"]["row"]
+                            to_col = drawing["coordinates"]["to"]["col"]
+                            to_row = drawing["coordinates"]["to"]["row"]
+
+                            for r in range(from_row, to_row + 1):
+                                for c in range(from_col, to_col + 1):
+                                    processed_cells.add(f"{get_column_letter(c)}{r}")
 
             # 残りのセル領域を検出
             print("\nProcessing remaining cell regions")
