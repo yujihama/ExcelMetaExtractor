@@ -294,10 +294,14 @@ class ExcelMetadataExtractor:
                 shape_info["shape_type"] = preset_geom.get('prst', 'unknown')
 
             # セル座標とオフセットの取得
-            anchor = sp_elem.getparent()  # 親要素（twoCellAnchor/oneCellAnchor）を取得
-            if anchor is not None:
-                from_elem = anchor.find('xdr:from', self.ns)
-                to_elem = anchor.find('xdr:to', self.ns)
+            # ルート要素から現在の図形要素を含む親アンカー要素を検索
+            for anchor in root.findall('.//xdr:twoCellAnchor', self.ns) + root.findall('.//xdr:oneCellAnchor', self.ns):
+                if sp_elem in anchor.findall('.//xdr:sp', self.ns):
+                    from_elem = anchor.find('xdr:from', self.ns)
+                    to_elem = anchor.find('xdr:to', self.ns)
+                    break
+            else:
+                return shape_info
 
                 if from_elem is not None and to_elem is not None:
                     # セル座標の取得
