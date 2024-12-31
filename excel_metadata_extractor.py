@@ -89,6 +89,29 @@ class ExcelMetadataExtractor:
                 tree = ET.parse(xml_file)
                 root = tree.getroot()
 
+                # すべてのxdr:sp要素を検索（図形）
+                for sp in root.findall('.//xdr:sp', self.ns):
+                    shape_info = self._extract_shape_info(sp)
+                    if shape_info:
+                        # EMU座標をセル座標に変換
+                        coords = shape_info.get('coordinates_emu', {})
+                        cell_coords = self._emu_to_cell_coordinates(
+                            coords.get('x'), coords.get('y'),
+                            coords.get('cx'), coords.get('cy')
+                        )
+
+                        # レンジ文字列を生成
+                        shape_info["range"] = (
+                            f"{get_column_letter(cell_coords['from']['col'])}{cell_coords['from']['row']}:"
+                            f"{get_column_letter(cell_coords['to']['col'])}{cell_coords['to']['row']}"
+                        )
+                        shape_info["coordinates"] = cell_coords
+
+                        drawing_list.append(shape_info)
+                        print(f"Found shape at {shape_info['range']}")
+                        if shape_info.get('text_content'):
+                            print(f"  Text content: {shape_info['text_content']}")
+
                 # すべてのアンカー要素を検索
                 anchors = (
                     root.findall('.//xdr:twoCellAnchor', self.ns) +
@@ -101,7 +124,7 @@ class ExcelMetadataExtractor:
                         # 図形の位置情報を取得
                         from_elem = anchor.find('.//xdr:from', self.ns)
                         to_elem = anchor.find('.//xdr:to', self.ns) or \
-                                 anchor.find('.//xdr:ext', self.ns)  # oneCellAnchorの場合
+                                     anchor.find('.//xdr:ext', self.ns)  # oneCellAnchorの場合
 
                         # absoluteAnchorの場合は位置情報を変換
                         if anchor.tag.endswith('absoluteAnchor'):
@@ -138,12 +161,6 @@ class ExcelMetadataExtractor:
                         # 図形要素の検出と解析
                         drawing_elements = []
 
-                        # 1. Shape要素 (xdr:sp)
-                        for sp in anchor.findall('.//xdr:sp', self.ns):
-                            shape_info = self._extract_shape_info(sp)
-                            if shape_info:
-                                drawing_elements.append(shape_info)
-
                         # 2. グループ形状 (xdr:grpSp)
                         for grp in anchor.findall('.//xdr:grpSp', self.ns):
                             group_info = self._extract_group_info(grp)
@@ -175,7 +192,7 @@ class ExcelMetadataExtractor:
                         for element in drawing_elements:
                             element.update({
                                 "range": f"{get_column_letter(from_col + 1)}{from_row + 1}:"
-                                        f"{get_column_letter(to_col + 1)}{to_row + 1}",
+                                         f"{get_column_letter(to_col + 1)}{to_row + 1}",
                                 "coordinates": {
                                     "from": {"col": from_col + 1, "row": from_row + 1},
                                     "to": {"col": to_col + 1, "row": to_row + 1}
@@ -203,24 +220,83 @@ class ExcelMetadataExtractor:
 
             # 形状情報を取得 (xdr:spPr)
             sp_pr = sp_elem.find('.//xdr:spPr', self.ns)
+            if sp_pr is None:
+                return None
 
+            # 座標情報の取得 (a:xfrm)
+            xfrm = sp_pr.find('.//a:xfrm', self.ns)
+            coordinates = {}
+            if xfrm is not None:
+                # 開始座標 (a:off)
+                off = xfrm.find('.//a:off', self.ns)
+                if off is not None:
+                    coordinates['x'] = off.get('x')
+                    coordinates['y'] = off.get('y')
+
+                # 幅・高さ (a:ext)
+                ext = xfrm.find('.//a:ext', self.ns)
+                if ext is not None:
+                    coordinates['cx'] = ext.get('cx')
+                    coordinates['cy'] = ext.get('cy')
+
+            # テキスト情報の取得
+            texts = []
+            for t_elem in sp_elem.findall('.//a:t', self.ns):
+                if t_elem.text:
+                    texts.append(t_elem.text)
+            text_content = ''.join(texts)
+
+            # 基本情報の構築
             shape_info = {
                 "type": "shape",
                 "name": nv_sp_pr.find('.//xdr:cNvPr', self.ns).get('name', ''),
                 "description": nv_sp_pr.find('.//xdr:cNvPr', self.ns).get('descr', ''),
-                "hidden": nv_sp_pr.find('.//xdr:cNvSpPr', self.ns).get('hidden', 'false') == 'true'
+                "hidden": nv_sp_pr.find('.//xdr:cNvSpPr', self.ns).get('hidden', 'false') == 'true',
+                "coordinates_emu": coordinates,  # EMU単位での座標
+                "text_content": text_content
             }
 
-            # プリセット形状がある場合は追加
-            if sp_pr is not None:
-                preset_geom = sp_pr.find('.//a:prstGeom', self.ns)
-                if preset_geom is not None:
-                    shape_info["shape_type"] = preset_geom.get('prst', 'unknown')
+            # プリセット形状の情報を追加
+            preset_geom = sp_pr.find('.//a:prstGeom', self.ns)
+            if preset_geom is not None:
+                shape_info["shape_type"] = preset_geom.get('prst', 'unknown')
 
             return shape_info
+
         except Exception as e:
             print(f"Error extracting shape info: {str(e)}")
             return None
+
+    def _emu_to_cell_coordinates(self, x: Optional[str], y: Optional[str], cx: Optional[str], cy: Optional[str]) -> Dict[str, Any]:
+        """Convert EMU coordinates to cell coordinates"""
+        try:
+            # EMUからセル座標への変換（1インチ = 914400 EMU）
+            EMU_PER_INCH = 914400
+            CELLS_PER_INCH = 6  # おおよその値
+
+            if all(v is not None for v in [x, y, cx, cy]):
+                from_col = int(int(x) / EMU_PER_INCH * CELLS_PER_INCH)
+                from_row = int(int(y) / EMU_PER_INCH * CELLS_PER_INCH)
+                width_cells = int(int(cx) / EMU_PER_INCH * CELLS_PER_INCH)
+                height_cells = int(int(cy) / EMU_PER_INCH * CELLS_PER_INCH)
+
+                return {
+                    "from": {"col": from_col + 1, "row": from_row + 1},
+                    "to": {"col": from_col + width_cells + 1, "row": from_row + height_cells + 1}
+                }
+            else:
+                return {
+                    "from": {"col": 1, "row": 1},
+                    "to": {"col": 2, "row": 2}
+                }
+
+        except Exception as e:
+            print(f"Error converting EMU coordinates: {str(e)}")
+            return {
+                "from": {"col": 1, "row": 1},
+                "to": {"col": 2, "row": 2}
+            }
+
 
     def _extract_group_info(self, grp_elem) -> Optional[Dict[str, Any]]:
         """Extract information from a group shape element (xdr:grpSp)"""
