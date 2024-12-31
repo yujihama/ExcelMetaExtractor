@@ -1,0 +1,125 @@
+{
+  // ① ファイル全体のメタ情報
+  "fileName": "FinanceReport_2024.xlsx",
+  "fileProperties": {
+    "createdTime": "2024-01-05T10:00:00",
+    "modifiedTime": "2024-02-10T15:30:00",
+    "fileSize": 1543675,
+    "author": "Yamada Taro",
+    "lastModifiedBy": "Sato Hanako",
+    "isPasswordProtected": false,
+    // など必要に応じて
+  },
+  // シートの一覧
+  "worksheets": [
+    {
+      // ② シート単位のメタ情報
+      "sheetName": "SalesData",
+      "isProtected": false,
+      "rowCount": 500,
+      "columnCount": 10,
+      "hasPivotTables": true,
+      "hasCharts": true,
+      // シート内で検出した「領域（Region）」の配列
+      "regions": [
+        {
+          // ③ エリア（Region）情報
+          "regionType": "table", // "text", "image", "shape"など
+          "range": "A1:E50",     // A1～E50までを「表」として検出
+          "title": "売上データ一覧",
+          "headerStructure": {
+            "headerType": "single",  // 単一行ヘッダーか複合ヘッダーか
+            "headerRowsCount": 1,
+            "mergedCells": false
+            // 必要ならヘッダーセルの配列や構造も
+          },
+          // この表に含まれるセル（全てではなくヘッダーや重要行など必要な範囲のみ）
+          "cells": [
+            {
+              "row": 1,
+              "col": 1,
+              "value": "Date",
+              "type": "string",
+              "formula": null
+            },
+            {
+              "row": 1,
+              "col": 2,
+              "value": "Product",
+              "type": "string"
+            },
+            {
+              "row": 1,
+              "col": 3,
+              "value": "Amount",
+              "type": "string"
+            },
+            // ...
+            {
+              "row": 2,
+              "col": 3,
+              "value": 12000,
+              "type": "number",
+              "formula": null
+            }
+          ],
+          "notes": "営業部が更新した売上データ"
+        },
+        {
+          "regionType": "text",
+          "range": "G1:G10",
+          "content": "ここに月次のメモ書きがありました。",
+          "notes": "監査チェックで参照必要"
+        },
+        {
+          "regionType": "image",
+          "range": "J1:J10",
+          "imageName": "SalesGraph.png",
+          "description": "売上推移のグラフ画像"
+        }
+      ],
+      // シート内相互参照（複数の表・画像の関連などあれば持つ）
+      "relationships": [
+        // 例： ピボットテーブルのデータ元が上記「SalesData」の表
+        {
+          "type": "pivotSource",
+          "pivotTableName": "PivotTable1",
+          "sourceRange": "A1:E50"
+        }
+      ]
+    },
+    {
+      "sheetName": "ExpenseData",
+      "isProtected": true,
+      "rowCount": 200,
+      "columnCount": 8,
+      "regions": [
+        {
+          "regionType": "table",
+          "range": "A1:C20",
+          "title": "経費明細",
+          "headerStructure": {
+            "headerType": "multiple", // 複数行のヘッダーの場合
+            "headerRowsCount": 2,
+            "mergedCells": true
+          },
+          "cells": [
+            // ヘッダー1行目、2行目を含むエリア
+          ]
+        }
+        // ...
+      ],
+      "relationships": []
+    }
+  ],
+  // ④ Workbook全体の「相互参照」
+  "crossSheetRelationships": [
+    {
+      "sourceSheet": "SalesData",
+      "sourceCell": "D10",
+      "formula": "=ExpenseData!C2 * 0.8",
+      "notes": "ExpenseDataシート上のセルを参照して割引率を計算"
+    },
+    // ...
+  ]
+}
