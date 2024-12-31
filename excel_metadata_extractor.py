@@ -133,16 +133,69 @@ class ExcelMetadataExtractor:
 
     def detect_header_structure(self, cells_data: List[List[Dict[str, Any]]]) -> Dict[str, Any]:
         """Analyze header structure using pattern recognition and LLM"""
-        # Convert cells data to a format suitable for LLM analysis
-        header_analysis = self.openai_helper.analyze_table_structure(json.dumps(cells_data))
-        if isinstance(header_analysis, str):
-            header_analysis = json.loads(header_analysis)
+        try:
+            if not cells_data or not cells_data[0]:
+                return {
+                    "headerType": "none",
+                    "headerRowsCount": 0,
+                    "confidence": 0.0
+                }
 
-        return {
-            "headerType": header_analysis.get("headerType", "single"),
-            "headerRowsCount": header_analysis.get("headerRowsCount", 1),
-            "confidence": header_analysis.get("confidence", 0.0)
-        }
+            # 結合セルパターンの分析
+            merged_cells_in_first_rows = any(
+                cell.get('isMerged', False)
+                for row in cells_data[:2]  # 最初の2行を確認
+                for cell in row
+            )
+
+            # ヘッダー候補行のデータ型分析
+            header_rows = []
+            data_rows = []
+
+            for i, row in enumerate(cells_data[:4]):  # 最初の4行まで分析
+                # 行の特徴を分析
+                cell_types = [cell['type'] for cell in row]
+                cell_values = [str(cell['value']).strip() for cell in row]
+
+                # ヘッダーらしい特徴をチェック
+                is_header_like = (
+                    all(t in ['text', 'empty'] for t in cell_types) and  # テキストか空セルのみ
+                    any(v != '' for v in cell_values) and  # 少なくとも1つは値がある
+                    not any(v.isdigit() for v in cell_values if v)  # 数値のみの値がない
+                )
+
+                if is_header_like:
+                    header_rows.append(i)
+                elif any(v != '' for v in cell_values):
+                    data_rows.append(i)
+                    if header_rows:  # ヘッダー行が見つかった後にデータ行が来たら終了
+                        break
+
+            # ヘッダー構造の判定
+            if not header_rows:
+                return {
+                    "headerType": "none",
+                    "headerRowsCount": 0,
+                    "confidence": 0.8
+                }
+
+            header_type = "multiple" if (len(header_rows) > 1 or merged_cells_in_first_rows) else "single"
+            header_rows_count = max(header_rows) - min(header_rows) + 1
+
+            return {
+                "headerType": header_type,
+                "headerRowsCount": header_rows_count,
+                "headerRows": header_rows,
+                "confidence": 0.9
+            }
+
+        except Exception as e:
+            print(f"Error in detect_header_structure: {str(e)}")
+            return {
+                "headerType": "none",
+                "headerRowsCount": 0,
+                "confidence": 0.0
+            }
 
     def detect_regions(self, sheet) -> List[Dict[str, Any]]:
         """Enhanced region detection with size limits"""
@@ -175,18 +228,11 @@ class ExcelMetadataExtractor:
                         for c in range(col, max_col + 1):
                             processed_cells.add(f"{get_column_letter(c)}{r}")
 
-                    # データサイズを削減したJSONを作成
-                    region_data = {
-                        "cells": cells_data[:10],  # 最初の10行のみ
-                        "mergedCells": merged_cells[:5],  # 最初の5個の結合セルのみ
-                        "startRow": row,
-                        "startCol": col,
-                        "endRow": max_row,
-                        "endCol": max_col
-                    }
-
-                    # Analyze region type and structure
-                    region_analysis = self.openai_helper.analyze_region_type(json.dumps(region_data))
+                    # Analyze region type
+                    region_analysis = self.openai_helper.analyze_region_type(json.dumps({
+                        "cells": cells_data[:5],
+                        "mergedCells": merged_cells[:3]
+                    }))
                     if isinstance(region_analysis, str):
                         region_analysis = json.loads(region_analysis)
 
@@ -196,7 +242,7 @@ class ExcelMetadataExtractor:
                     region_metadata = {
                         "regionType": region_type,
                         "range": f"{get_column_letter(col)}{row}:{get_column_letter(max_col)}{max_row}",
-                        "sampleCells": cells_data[:3],  # サンプルとして最初の3行のみを保持
+                        "sampleCells": cells_data[:3],
                         "mergedCells": merged_cells
                     }
 
@@ -207,16 +253,24 @@ class ExcelMetadataExtractor:
                         if isinstance(header_structure, str):
                             header_structure = json.loads(header_structure)
 
-                        # Add header row range information
-                        header_rows_count = header_structure.get("headerRowsCount", 1)
-                        region_metadata.update({
-                            "headerStructure": {
-                                "headerType": header_structure.get("headerType", "single"),
-                                "headerRowsCount": header_rows_count,
-                                "headerRange": f"{row}-{row + header_rows_count - 1}",  # ヘッダー行の範囲を追加
-                                "mergedCells": bool(merged_cells)
-                            }
-                        })
+                        # Calculate header range only if header rows were found
+                        if header_structure.get("headerRows"):
+                            header_rows = header_structure["headerRows"]
+                            if header_rows:
+                                min_header_row = min(header_rows)
+                                max_header_row = max(header_rows)
+                                header_range = f"{row + min_header_row}-{row + max_header_row}"
+                            else:
+                                header_range = "N/A"
+                        else:
+                            header_range = "N/A"
+
+                        region_metadata["headerStructure"] = {
+                            "headerType": header_structure.get("headerType", "none"),
+                            "headerRowsCount": header_structure.get("headerRowsCount", 0),
+                            "headerRange": header_range,
+                            "mergedCells": bool(merged_cells)
+                        }
 
                     regions.append(region_metadata)
 
