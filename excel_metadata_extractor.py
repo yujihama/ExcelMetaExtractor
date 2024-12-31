@@ -89,9 +89,12 @@ class ExcelMetadataExtractor:
                 tree = ET.parse(xml_file)
                 root = tree.getroot()
 
-                # twoCellAnchorとoneCellAnchorを検索
-                anchors = root.findall('.//xdr:twoCellAnchor', self.ns) + \
-                         root.findall('.//xdr:oneCellAnchor', self.ns)
+                # すべてのアンカー要素を検索
+                anchors = (
+                    root.findall('.//xdr:twoCellAnchor', self.ns) +
+                    root.findall('.//xdr:oneCellAnchor', self.ns) +
+                    root.findall('.//xdr:absoluteAnchor', self.ns)
+                )
 
                 for anchor in anchors:
                     try:
@@ -100,73 +103,85 @@ class ExcelMetadataExtractor:
                         to_elem = anchor.find('.//xdr:to', self.ns) or \
                                  anchor.find('.//xdr:ext', self.ns)  # oneCellAnchorの場合
 
-                        if from_elem is None:
-                            continue
-
-                        # 座標情報を取得
-                        from_col = int(from_elem.find('xdr:col', self.ns).text)
-                        from_row = int(from_elem.find('xdr:row', self.ns).text)
-
-                        if to_elem is not None:
-                            if anchor.tag.endswith('twoCellAnchor'):
-                                to_col = int(to_elem.find('xdr:col', self.ns).text)
-                                to_row = int(to_elem.find('xdr:row', self.ns).text)
-                            else:  # oneCellAnchor
-                                # cx, cyを使用して範囲を計算
-                                cx = int(to_elem.get('cx', '0'))
-                                cy = int(to_elem.get('cy', '0'))
-                                # 簡易的な変換（実際はより複雑な計算が必要）
-                                to_col = from_col + (cx // 100000)
-                                to_row = from_row + (cy // 100000)
+                        # absoluteAnchorの場合は位置情報を変換
+                        if anchor.tag.endswith('absoluteAnchor'):
+                            pos = anchor.find('.//xdr:pos', self.ns)
+                            ext = anchor.find('.//xdr:ext', self.ns)
+                            if pos is not None and ext is not None:
+                                # EMUからセル座標への概算変換
+                                from_col = int(int(pos.get('x', '0')) / 914400)  # 1インチ = 914400 EMU
+                                from_row = int(int(pos.get('y', '0')) / 914400)
+                                to_col = from_col + int(int(ext.get('cx', '0')) / 914400)
+                                to_row = from_row + int(int(ext.get('cy', '0')) / 914400)
                         else:
-                            to_col = from_col + 1
-                            to_row = from_row + 1
+                            if from_elem is None:
+                                continue
 
-                        # 図形の種類と詳細情報を判定
-                        shape_type = "shape"
-                        shape_info = {}
+                            # 通常の座標情報を取得
+                            from_col = int(from_elem.find('xdr:col', self.ns).text)
+                            from_row = int(from_elem.find('xdr:row', self.ns).text)
 
-                        # 画像の場合
-                        pic = anchor.find('.//xdr:pic', self.ns)
-                        if pic is not None:
-                            shape_type = "image"
-                            blip = pic.find('.//a:blip', self.ns)
-                            if blip is not None:
-                                shape_info["image_ref"] = blip.get(f'{{{self.ns["r"]}}}embed')
+                            if to_elem is not None:
+                                if anchor.tag.endswith('twoCellAnchor'):
+                                    to_col = int(to_elem.find('xdr:col', self.ns).text)
+                                    to_row = int(to_elem.find('xdr:row', self.ns).text)
+                                else:  # oneCellAnchor
+                                    cx = int(to_elem.get('cx', '0'))
+                                    cy = int(to_elem.get('cy', '0'))
+                                    # EMUからセル数への変換
+                                    to_col = from_col + (cx // 914400)
+                                    to_row = from_row + (cy // 914400)
+                            else:
+                                to_col = from_col + 1
+                                to_row = from_row + 1
 
-                        # SmartArtの場合
-                        if anchor.find('.//a:graphicData[@uri="http://schemas.microsoft.com/office/drawing/2008/diagram"]', self.ns) is not None:
-                            shape_type = "smartart"
-                            # SmartArtの詳細情報を取得（可能な場合）
-                            shape_info["diagram_type"] = "smartart"
+                        # 図形要素の検出と解析
+                        drawing_elements = []
 
-                        # グラフの場合
+                        # 1. Shape要素 (xdr:sp)
+                        for sp in anchor.findall('.//xdr:sp', self.ns):
+                            shape_info = self._extract_shape_info(sp)
+                            if shape_info:
+                                drawing_elements.append(shape_info)
+
+                        # 2. グループ形状 (xdr:grpSp)
+                        for grp in anchor.findall('.//xdr:grpSp', self.ns):
+                            group_info = self._extract_group_info(grp)
+                            if group_info:
+                                drawing_elements.append(group_info)
+
+                        # 3. コネクタ形状 (xdr:cxnSp)
+                        for cxn in anchor.findall('.//xdr:cxnSp', self.ns):
+                            connector_info = self._extract_connector_info(cxn)
+                            if connector_info:
+                                drawing_elements.append(connector_info)
+
+                        # 4. 画像 (xdr:pic)
+                        for pic in anchor.findall('.//xdr:pic', self.ns):
+                            picture_info = self._extract_picture_info(pic)
+                            if picture_info:
+                                drawing_elements.append(picture_info)
+
+                        # 5. グラフ (c:chart)
                         chart = anchor.find('.//c:chart', self.ns)
                         if chart is not None:
-                            shape_type = "chart"
-                            shape_info["chart_ref"] = chart.get(f'{{{self.ns["r"]}}}id')
+                            chart_info = {
+                                "type": "chart",
+                                "chart_ref": chart.get(f'{{{self.ns["r"]}}}id')
+                            }
+                            drawing_elements.append(chart_info)
 
-                        # 図形の名前と説明を取得
-                        shape_props = anchor.find('.//xdr:sp/xdr:nvSpPr/xdr:cNvPr', self.ns) or \
-                                    anchor.find('.//xdr:pic/xdr:nvPicPr/xdr:cNvPr', self.ns)
-
-                        if shape_props is not None:
-                            shape_info["name"] = shape_props.get('name', '')
-                            shape_info["description"] = shape_props.get('descr', '')
-
-                        drawing_info = {
-                            "type": shape_type,
-                            "range": f"{get_column_letter(from_col + 1)}{from_row + 1}:"
-                                    f"{get_column_letter(to_col + 1)}{to_row + 1}",
-                            "coordinates": {
-                                "from": {"col": from_col + 1, "row": from_row + 1},
-                                "to": {"col": to_col + 1, "row": to_row + 1}
-                            },
-                            **shape_info
-                        }
-
-                        print(f"Found {shape_type} at {drawing_info['range']}")
-                        drawing_list.append(drawing_info)
+                        # 各図形要素に共通の座標情報を追加
+                        for element in drawing_elements:
+                            element.update({
+                                "range": f"{get_column_letter(from_col + 1)}{from_row + 1}:"
+                                        f"{get_column_letter(to_col + 1)}{to_row + 1}",
+                                "coordinates": {
+                                    "from": {"col": from_col + 1, "row": from_row + 1},
+                                    "to": {"col": to_col + 1, "row": to_row + 1}
+                                }
+                            })
+                            drawing_list.append(element)
 
                     except Exception as e:
                         print(f"Error processing anchor: {str(e)}")
@@ -177,6 +192,94 @@ class ExcelMetadataExtractor:
 
         print(f"Total drawings extracted: {len(drawing_list)}")
         return drawing_list
+
+    def _extract_shape_info(self, sp_elem) -> Optional[Dict[str, Any]]:
+        """Extract information from a shape element (xdr:sp)"""
+        try:
+            # 非表示情報を取得 (xdr:nvSpPr)
+            nv_sp_pr = sp_elem.find('.//xdr:nvSpPr', self.ns)
+            if nv_sp_pr is None:
+                return None
+
+            # 形状情報を取得 (xdr:spPr)
+            sp_pr = sp_elem.find('.//xdr:spPr', self.ns)
+
+            shape_info = {
+                "type": "shape",
+                "name": nv_sp_pr.find('.//xdr:cNvPr', self.ns).get('name', ''),
+                "description": nv_sp_pr.find('.//xdr:cNvPr', self.ns).get('descr', ''),
+                "hidden": nv_sp_pr.find('.//xdr:cNvSpPr', self.ns).get('hidden', 'false') == 'true'
+            }
+
+            # プリセット形状がある場合は追加
+            if sp_pr is not None:
+                preset_geom = sp_pr.find('.//a:prstGeom', self.ns)
+                if preset_geom is not None:
+                    shape_info["shape_type"] = preset_geom.get('prst', 'unknown')
+
+            return shape_info
+        except Exception as e:
+            print(f"Error extracting shape info: {str(e)}")
+            return None
+
+    def _extract_group_info(self, grp_elem) -> Optional[Dict[str, Any]]:
+        """Extract information from a group shape element (xdr:grpSp)"""
+        try:
+            nv_grp_sp_pr = grp_elem.find('.//xdr:nvGrpSpPr', self.ns)
+            if nv_grp_sp_pr is None:
+                return None
+
+            # グループ内の図形数をカウント
+            shapes_count = len(grp_elem.findall('.//xdr:sp', self.ns))
+            pics_count = len(grp_elem.findall('.//xdr:pic', self.ns))
+
+            return {
+                "type": "group",
+                "name": nv_grp_sp_pr.find('.//xdr:cNvPr', self.ns).get('name', ''),
+                "description": nv_grp_sp_pr.find('.//xdr:cNvPr', self.ns).get('descr', ''),
+                "shapes_count": shapes_count,
+                "pictures_count": pics_count
+            }
+        except Exception as e:
+            print(f"Error extracting group info: {str(e)}")
+            return None
+
+    def _extract_connector_info(self, cxn_elem) -> Optional[Dict[str, Any]]:
+        """Extract information from a connector shape element (xdr:cxnSp)"""
+        try:
+            nv_cxn_sp_pr = cxn_elem.find('.//xdr:nvCxnSpPr', self.ns)
+            if nv_cxn_sp_pr is None:
+                return None
+
+            return {
+                "type": "connector",
+                "name": nv_cxn_sp_pr.find('.//xdr:cNvPr', self.ns).get('name', ''),
+                "description": nv_cxn_sp_pr.find('.//xdr:cNvPr', self.ns).get('descr', '')
+            }
+        except Exception as e:
+            print(f"Error extracting connector info: {str(e)}")
+            return None
+
+    def _extract_picture_info(self, pic_elem) -> Optional[Dict[str, Any]]:
+        """Extract information from a picture element (xdr:pic)"""
+        try:
+            nv_pic_pr = pic_elem.find('.//xdr:nvPicPr', self.ns)
+            if nv_pic_pr is None:
+                return None
+
+            # 画像参照情報を取得
+            blip = pic_elem.find('.//a:blip', self.ns)
+            image_ref = blip.get(f'{{{self.ns["r"]}}}embed') if blip is not None else None
+
+            return {
+                "type": "image",
+                "name": nv_pic_pr.find('.//xdr:cNvPr', self.ns).get('name', ''),
+                "description": nv_pic_pr.find('.//xdr:cNvPr', self.ns).get('descr', ''),
+                "image_ref": image_ref
+            }
+        except Exception as e:
+            print(f"Error extracting picture info: {str(e)}")
+            return None
 
     def detect_regions(self, sheet) -> List[Dict[str, Any]]:
         """Enhanced region detection including drawings"""
