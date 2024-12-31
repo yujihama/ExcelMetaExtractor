@@ -124,39 +124,32 @@ class ExcelMetadataExtractor:
                 print(f"XML Root tag: {root.tag}")
                 print(f"XML Namespaces: {root.nsmap if hasattr(root, 'nsmap') else 'Default namespace'}")
 
-                # すべてのxdr:sp要素を検索（図形）
-                shapes = root.findall('.//xdr:sp', self.ns)
-                print(f"\nFound {len(shapes)} shape elements")
+                # すべてのアンカー要素を検索して、その中の図形を処理
+                anchors = (
+                    root.findall('.//xdr:twoCellAnchor', self.ns) +
+                    root.findall('.//xdr:oneCellAnchor', self.ns) +
+                    root.findall('.//xdr:absoluteAnchor', self.ns)
+                )
+                
+                shape_count = 0
+                for anchor in anchors:
+                    sp_list = anchor.findall('.//xdr:sp', self.ns)
+                    for idx, sp in enumerate(sp_list, 1):
+                        shape_count += 1
+                        print(f"\nProcessing shape #{shape_count}")
+                        shape_info = self._extract_shape_info(sp, anchor)
+                        if shape_info:
+                            print(f"Extracted shape info: {json.dumps(shape_info, indent=2)}")
+                            drawing_list.append(shape_info)
+                            print(f"Added shape at {shape_info['range']}")
+                            if shape_info.get('text_content'):
+                                print(f"  Text content: {shape_info['text_content']}")
+                        else:
+                            print(f"Failed to extract info for shape #{shape_count}")
 
-                for idx, sp in enumerate(shapes, 1):
-                    print(f"\nProcessing shape #{idx}")
-                    shape_info = self._extract_shape_info(sp)
-                    if shape_info:
-                        print(f"Extracted shape info: {json.dumps(shape_info, indent=2)}")
+                print(f"\nFound {shape_count} shape elements")
 
-                        # EMU座標をセル座標に変換
-                        coords = shape_info.get('coordinates_emu', {})
-                        cell_coords = self._emu_to_cell_coordinates(
-                            coords.get('x'), coords.get('y'),
-                            coords.get('cx'), coords.get('cy')
-                        )
-                        print(f"Converted coordinates: {json.dumps(cell_coords, indent=2)}")
-
-                        # レンジ文字列を生成
-                        shape_info["range"] = (
-                            f"{get_column_letter(cell_coords['from']['col'])}{cell_coords['from']['row']}:"
-                            f"{get_column_letter(cell_coords['to']['col'])}{cell_coords['to']['row']}"
-                        )
-                        shape_info["coordinates"] = cell_coords
-
-                        drawing_list.append(shape_info)
-                        print(f"Added shape at {shape_info['range']}")
-                        if shape_info.get('text_content'):
-                            print(f"  Text content: {shape_info['text_content']}")
-                    else:
-                        print(f"Failed to extract info for shape #{idx}")
-
-                # すべてのアンカー要素を検索
+                # 残りのアンカー要素を処理
                 anchors = (
                     root.findall('.//xdr:twoCellAnchor', self.ns) +
                     root.findall('.//xdr:oneCellAnchor', self.ns) +
@@ -256,7 +249,7 @@ class ExcelMetadataExtractor:
         print(f"\nTotal drawings extracted: {len(drawing_list)}")
         return drawing_list
 
-    def _extract_shape_info(self, sp_elem) -> Optional[Dict[str, Any]]:
+    def _extract_shape_info(self, sp_elem, anchor) -> Optional[Dict[str, Any]]:
         """Extract information from a shape element (xdr:sp)"""
         try:
             # 非表示情報を取得 (xdr:nvSpPr)
@@ -293,16 +286,11 @@ class ExcelMetadataExtractor:
             if preset_geom is not None:
                 shape_info["shape_type"] = preset_geom.get('prst', 'unknown')
 
-            # 図形要素の親要素を探索して座標を取得
-            parent = sp_elem.getparent()
-            while parent is not None and parent.tag.split('}')[-1] not in ['twoCellAnchor', 'oneCellAnchor']:
-                parent = parent.getparent()
+            # アンカーから座標情報を取得
+            from_elem = anchor.find('xdr:from', self.ns)
+            to_elem = anchor.find('xdr:to', self.ns)
 
-            if parent is not None:
-                from_elem = parent.find('xdr:from', self.ns)
-                to_elem = parent.find('xdr:to', self.ns)
-
-                if from_elem is not None and to_elem is not None:
+            if from_elem is not None and to_elem is not None:
                     # セル座標の取得
                     from_col = int(from_elem.find('xdr:col', self.ns).text)
                     from_row = int(from_elem.find('xdr:row', self.ns).text)
