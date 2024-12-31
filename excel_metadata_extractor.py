@@ -23,7 +23,8 @@ class ExcelMetadataExtractor:
             'xdr': 'http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing',
             'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
             'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart',
-            'sp': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
+            'sp': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main',
+            'pr': 'http://schemas.openxmlformats.org/package/2006/relationships'
         }
 
     def get_sheet_drawing_relations(self, excel_zip) -> Dict[str, str]:
@@ -55,7 +56,7 @@ class ExcelMetadataExtractor:
                 rels_root = rels_tree.getroot()
 
                 # シートとターゲットの対応を取得
-                for rel in rels_root.findall('.//Relationship', {'': self.ns['r']}):
+                for rel in rels_root.findall('.//pr:Relationship', self.ns):
                     r_id = rel.get('Id')
                     if r_id in sheets:
                         sheet_info = sheets[r_id]
@@ -87,7 +88,7 @@ class ExcelMetadataExtractor:
                                     sheet_rels_root = sheet_rels_tree.getroot()
 
                                     # drawingへの参照を探す
-                                    for sheet_rel in sheet_rels_root.findall('.//Relationship', {'': self.ns['r']}):
+                                    for sheet_rel in sheet_rels_root.findall('.//pr:Relationship', self.ns):
                                         rel_type = sheet_rel.get('Type', '')
                                         rel_target = sheet_rel.get('Target', '')
                                         print(f"Found relationship - Type: {rel_type}, Target: {rel_target}")
