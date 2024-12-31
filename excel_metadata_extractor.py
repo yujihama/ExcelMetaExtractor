@@ -96,21 +96,34 @@ class ExcelMetadataExtractor:
         drawing_list = []
 
         try:
+            print(f"\nAttempting to open drawing file: {drawing_path}")
+            print(f"Available files in zip: {excel_zip.namelist()}")
+
             # drawing.xmlを解析
             with excel_zip.open(drawing_path) as xml_file:
+                print(f"Successfully opened {drawing_path}")
                 tree = ET.parse(xml_file)
                 root = tree.getroot()
+                print(f"XML Root tag: {root.tag}")
+                print(f"XML Namespaces: {root.nsmap if hasattr(root, 'nsmap') else 'Default namespace'}")
 
                 # すべてのxdr:sp要素を検索（図形）
-                for sp in root.findall('.//xdr:sp', self.ns):
+                shapes = root.findall('.//xdr:sp', self.ns)
+                print(f"\nFound {len(shapes)} shape elements")
+
+                for idx, sp in enumerate(shapes, 1):
+                    print(f"\nProcessing shape #{idx}")
                     shape_info = self._extract_shape_info(sp)
                     if shape_info:
+                        print(f"Extracted shape info: {json.dumps(shape_info, indent=2)}")
+
                         # EMU座標をセル座標に変換
                         coords = shape_info.get('coordinates_emu', {})
                         cell_coords = self._emu_to_cell_coordinates(
                             coords.get('x'), coords.get('y'),
                             coords.get('cx'), coords.get('cy')
                         )
+                        print(f"Converted coordinates: {json.dumps(cell_coords, indent=2)}")
 
                         # レンジ文字列を生成
                         shape_info["range"] = (
@@ -120,9 +133,11 @@ class ExcelMetadataExtractor:
                         shape_info["coordinates"] = cell_coords
 
                         drawing_list.append(shape_info)
-                        print(f"Found shape at {shape_info['range']}")
+                        print(f"Added shape at {shape_info['range']}")
                         if shape_info.get('text_content'):
                             print(f"  Text content: {shape_info['text_content']}")
+                    else:
+                        print(f"Failed to extract info for shape #{idx}")
 
                 # すべてのアンカー要素を検索
                 anchors = (
@@ -136,7 +151,7 @@ class ExcelMetadataExtractor:
                         # 図形の位置情報を取得
                         from_elem = anchor.find('.//xdr:from', self.ns)
                         to_elem = anchor.find('.//xdr:to', self.ns) or \
-                                 anchor.find('.//xdr:ext', self.ns)  # oneCellAnchorの場合
+                                    anchor.find('.//xdr:ext', self.ns)  # oneCellAnchorの場合
 
                         # absoluteAnchorの場合は位置情報を変換
                         if anchor.tag.endswith('absoluteAnchor'):
@@ -216,10 +231,12 @@ class ExcelMetadataExtractor:
                         print(f"Error processing anchor: {str(e)}")
                         continue
 
+        except KeyError as e:
+            print(f"KeyError in extract_drawing_info: {str(e)}\n{traceback.format_exc()}")
         except Exception as e:
             print(f"Error extracting drawing info: {str(e)}\n{traceback.format_exc()}")
 
-        print(f"Total drawings extracted: {len(drawing_list)}")
+        print(f"\nTotal drawings extracted: {len(drawing_list)}")
         return drawing_list
 
     def _extract_shape_info(self, sp_elem) -> Optional[Dict[str, Any]]:
@@ -654,30 +671,16 @@ class ExcelMetadataExtractor:
             cells_data.append(row_data)
 
         if max_row > actual_max_row or max_col > actual_max_col:
-            print(f"Warning: Region was truncated from {max_row-start_row+1}x{max_col-start_col+1} to {actual_max_row-start_row+1}x{actual_max_col-start_col+1} cells due to size limits")
+            print(f"Note: Region was truncated from {max_row}x{max_col} to {actual_max_row}x{actual_max_col}")
 
         return cells_data
 
     def detect_header_structure(self, cells_data: List[List[Dict[str, Any]]]) -> Dict[str, Any]:
-        """Analyze header structure using pattern recognition and LLM"""
+        """Analyze the header structure of a table region"""
         try:
-            if not cells_data or not cells_data[0]:
-                return {
-                    "headerType": "none",
-                    "headerRowsCount": 0,
-                    "confidence": 0.0
-                }
-
-            # 結合セルパターンの分析
-            merged_cells_in_first_rows = any(
-                cell.get('isMerged', False)
-                for row in cells_data[:2]  # 最初の2行を確認
-                for cell in row
-            )
-
-            # ヘッダー候補行のデータ型分析
             header_rows = []
-            data_rows = []
+            header_type = "none"
+            header_rows_count = 0
 
             for i, row in enumerate(cells_data[:4]):  # 最初の4行まで分析
                 # 行の特徴を分析
@@ -686,34 +689,22 @@ class ExcelMetadataExtractor:
 
                 # ヘッダーらしい特徴をチェック
                 is_header_like = (
-                    all(t in ['text', 'empty'] for t in cell_types) and  # テキストか空セルのみ
-                    any(v != '' for v in cell_values) and  # 少なくとも1つは値がある
-                    not any(v.isdigit() for v in cell_values if v)  # 数値のみの値がない
+                    all(v != "" for v in cell_values) and  # すべてのセルに値がある
+                    all(t in ['text', 'string'] for t in cell_types)  # テキストセルが多い
                 )
 
                 if is_header_like:
                     header_rows.append(i)
-                elif any(v != '' for v in cell_values):
-                    data_rows.append(i)
-                    if header_rows:  # ヘッダー行が見つかった後にデータ行が来たら終了
-                        break
 
-            # ヘッダー構造の判定
-            if not header_rows:
-                return {
-                    "headerType": "none",
-                    "headerRowsCount": 0,
-                    "confidence": 0.8
-                }
-
-            header_type = "multiple" if (len(header_rows) > 1 or merged_cells_in_first_rows) else "single"
-            header_rows_count = max(header_rows) - min(header_rows) + 1
+            # ヘッダー行数に基づいてタイプを判定
+            if header_rows:
+                header_rows_count = len(header_rows)
+                header_type = "multiple" if header_rows_count > 1 else "single"
 
             return {
                 "headerType": header_type,
                 "headerRowsCount": header_rows_count,
-                "headerRows": header_rows,
-                "confidence": 0.9
+                "headerRows": header_rows
             }
 
         except Exception as e:
@@ -721,7 +712,7 @@ class ExcelMetadataExtractor:
             return {
                 "headerType": "none",
                 "headerRowsCount": 0,
-                "confidence": 0.0
+                "headerRows": []
             }
 
     def get_sheet_metadata(self) -> list:
