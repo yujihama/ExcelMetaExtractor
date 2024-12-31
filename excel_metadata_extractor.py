@@ -22,14 +22,21 @@ class ExcelMetadataExtractor:
 
         try:
             if not hasattr(sheet, '_drawings') or not sheet._drawings:
+                print(f"No drawings found in sheet: {sheet.title}")
                 return drawing_list
 
+            print(f"Found {len(sheet._drawings)} drawing(s) in sheet: {sheet.title}")
             for drawing in sheet._drawings:
                 if isinstance(drawing, SpreadsheetDrawing):
+                    print(f"Processing SpreadsheetDrawing: {drawing}")
                     for shape in drawing.shapes:
                         # 画像や図形の座標情報を取得
                         from_col, from_row = shape.anchor._from.col, shape.anchor._from.row
                         to_col, to_row = shape.anchor._to.col, shape.anchor._to.row
+
+                        print(f"Shape detected: type={'image' if hasattr(shape, 'image') else 'shape'}, "
+                              f"range={get_column_letter(from_col + 1)}{from_row + 1}:"
+                              f"{get_column_letter(to_col + 1)}{to_row + 1}")
 
                         drawing_info = {
                             "type": "image" if hasattr(shape, 'image') else "shape",
@@ -49,12 +56,14 @@ class ExcelMetadataExtractor:
                                 "image_format": shape.image.format,
                                 "image_ref": shape.image.ref,
                             })
+                            print(f"Image details: format={shape.image.format}, ref={shape.image.ref}")
 
                         drawing_list.append(drawing_info)
 
         except Exception as e:
             print(f"Error extracting drawing info: {str(e)}\n{traceback.format_exc()}")
 
+        print(f"Total drawings extracted: {len(drawing_list)}")
         return drawing_list
 
     def detect_regions(self, sheet) -> List[Dict[str, Any]]:
@@ -64,15 +73,28 @@ class ExcelMetadataExtractor:
 
         try:
             # まず画像・図形領域を検出
+            print(f"\nProcessing drawings in sheet: {sheet.title}")
             drawings = self.extract_drawing_info(sheet)
             for drawing in drawings:
-                regions.append({
-                    "regionType": "image" if drawing["type"] == "image" else "shape",
+                drawing_type = drawing["type"]  # "image" or "shape"
+                region_info = {
+                    "regionType": drawing_type,
+                    "type": drawing_type,
                     "range": drawing["range"],
                     "description": drawing["description"],
                     "name": drawing["name"],
                     "coordinates": drawing["coordinates"]
-                })
+                }
+
+                # 画像特有の情報を追加
+                if drawing_type == "image" and "image_format" in drawing:
+                    region_info.update({
+                        "image_format": drawing["image_format"],
+                        "image_ref": drawing["image_ref"]
+                    })
+
+                regions.append(region_info)
+                print(f"Added {drawing_type} region: {region_info['range']}")
 
                 # 画像・図形が占める領域をprocessed_cellsに追加
                 from_col = drawing["coordinates"]["from"]["col"]
@@ -84,7 +106,8 @@ class ExcelMetadataExtractor:
                     for c in range(from_col, to_col + 1):
                         processed_cells.add(f"{get_column_letter(c)}{r}")
 
-            # 残りのセル領域を検出（既存のコード）
+            # 残りのセル領域を検出
+            print("\nProcessing remaining cell regions")
             for row in range(1, min(sheet.max_row + 1, 100)):
                 for col in range(1, min(sheet.max_column + 1, 20)):
                     cell_coord = f"{get_column_letter(col)}{row}"
@@ -102,7 +125,7 @@ class ExcelMetadataExtractor:
                     # Extract cells data with limits
                     cells_data = self.extract_region_cells(sheet, row, col, max_row, max_col)
 
-                    # Get merged cells information (制限付き)
+                    # Get merged cells information
                     merged_cells = self.get_merged_cells_info(sheet, row, col, max_row, max_col)
 
                     # Mark cells as processed
@@ -155,12 +178,14 @@ class ExcelMetadataExtractor:
                         }
 
                     regions.append(region_metadata)
+                    print(f"Added {region_type} region: {region_metadata['range']}")
 
                     # 領域数も制限する
                     if len(regions) >= 10:  # 最大10領域まで
                         print("Warning: Maximum number of regions reached, stopping analysis")
                         return regions
 
+            print(f"\nTotal regions detected: {len(regions)}")
             return regions
         except Exception as e:
             print(f"Error in detect_regions: {str(e)}\n{traceback.format_exc()}")

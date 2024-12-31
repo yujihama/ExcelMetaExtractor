@@ -35,8 +35,8 @@ def display_region_info(region):
             # 基本情報の表示
             cols = st.columns(2)
             with cols[0]:
-                st.metric("Type", region['type'].title())
-                if 'name' in region:
+                st.metric("Type", region.get('type', '').title())
+                if 'name' in region and region['name']:
                     st.text(f"Name: {region['name']}")
             with cols[1]:
                 if 'description' in region and region['description']:
@@ -50,42 +50,39 @@ def display_region_info(region):
                 st.text(f"To: Column {coords['to']['col']}, Row {coords['to']['row']}")
 
             # 画像特有の情報
-            if region['regionType'] == 'image' and 'image_format' in region:
-                st.markdown("**Image Details:**")
-                st.text(f"Format: {region['image_format']}")
+            if region['regionType'] == 'image':
+                if 'image_format' in region:
+                    st.markdown("**Image Details:**")
+                    st.text(f"Format: {region['image_format']}")
+                if 'image_ref' in region:
+                    st.text(f"Reference: {region['image_ref']}")
 
-        # 既存の表示ロジックを維持
         elif region['regionType'] == 'table':
             st.markdown("##### 📊 Table Information")
 
             # Display header structure information
-            st.markdown("**Header Structure:**")
-            cols = st.columns(3)
-            with cols[0]:
-                header_type = region.get('headerStructure', {}).get('headerType', 'Unknown')
-                st.metric("Header Type", header_type.title())  # 'single' -> 'Single'
-            with cols[1]:
-                header_range = region.get('headerStructure', {}).get('headerRange', 'N/A')
-                st.metric("Header Rows", header_range)
-            with cols[2]:
-                has_merged = region.get('headerStructure', {}).get('mergedCells', False)
-                st.metric("Has Merged Cells", "Yes" if has_merged else "No")
+            if 'headerStructure' in region:
+                st.markdown("**Header Structure:**")
+                cols = st.columns(3)
+                with cols[0]:
+                    header_type = region['headerStructure'].get('headerType', 'Unknown')
+                    st.metric("Header Type", header_type.title())
+                with cols[1]:
+                    header_range = region['headerStructure'].get('headerRange', 'N/A')
+                    st.metric("Header Range", header_range)
+                with cols[2]:
+                    has_merged = region['headerStructure'].get('mergedCells', False)
+                    st.metric("Has Merged Cells", "Yes" if has_merged else "No")
 
-            # Display header cells if available
-            if region.get('sampleCells') and len(region['sampleCells']) > 0:
-                st.markdown("**Header Content:**")
-                header_rows = region['sampleCells'][:region.get('headerStructure', {}).get('headerRowsCount', 1)]
-                if header_rows:
-                    header_data = []
-                    for row in header_rows:
-                        row_data = {f"Column {cell['col']}": cell['value'] for cell in row}
-                        header_data.append(row_data)
-                    st.dataframe(pd.DataFrame(header_data))
-
-            # Display any additional table information
-            if 'purpose' in region:
-                st.markdown("**Table Purpose:**")
-                st.write(region['purpose'])
+            # Display sample cells if available
+            if 'sampleCells' in region and region['sampleCells']:
+                st.markdown("**Sample Data:**")
+                sample_data = []
+                for row in region['sampleCells']:
+                    row_data = {f"Column {cell['col']}": cell['value'] for cell in row}
+                    sample_data.append(row_data)
+                if sample_data:
+                    st.dataframe(pd.DataFrame(sample_data))
 
         elif region['regionType'] == 'text':
             st.markdown("##### 📝 Text Information")
@@ -96,34 +93,16 @@ def display_region_info(region):
             if 'importance' in region:
                 st.write("Importance:", region['importance'])
 
-        elif region['regionType'] == 'chart':
-            st.markdown("##### 📈 Chart Information")
-            if 'chartType' in region:
-                st.write("Chart Type:", region['chartType'])
-            if 'purpose' in region:
-                st.write("Purpose:", region['purpose'])
-
-        # Display sample cells if available
-        if 'sampleCells' in region and region['sampleCells']:
-            st.markdown("##### 📊 Sample Data")
-            # Convert sample cells to a pandas DataFrame for better display
-            sample_data = []
-            for row in region['sampleCells']:
-                row_data = {f"Column {cell['col']}": cell['value'] for cell in row}
-                sample_data.append(row_data)
-            if sample_data:
-                st.dataframe(pd.DataFrame(sample_data))
-
         # Display merged cells if available
         if 'mergedCells' in region and region['mergedCells']:
             st.markdown("##### 🔀 Merged Cells")
             for merged in region['mergedCells']:
                 st.text(f"Range: {merged['range']} - Value: {merged.get('value', 'N/A')}")
 
-
     except Exception as e:
         st.error(f"Error displaying region info: {str(e)}")
-        st.error(f"Region data structure: {json.dumps(region, indent=2)}")
+        st.error(f"Region data: {json.dumps(region, indent=2)}")
+        st.error(f"Stack trace:\n{traceback.format_exc()}")
 
 def main():
     st.set_page_config(
