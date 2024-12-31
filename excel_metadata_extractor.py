@@ -42,9 +42,13 @@ class ExcelMetadataExtractor:
                     sheet_id = sheet.get('sheetId')
                     r_id = sheet.get(f'{{{self.ns["r"]}}}id')
                     sheet_name = sheet.get('name', '')
-                    sheets[r_id] = sheet_id
+                    sheets[r_id] = {
+                        'id': sheet_id,
+                        'name': sheet_name
+                    }
                     print(f"Found sheet: {sheet_name} (ID: {sheet_id}, rId: {r_id})")
 
+            print("\nProcessing workbook relationships...")
             # xl/_rels/workbook.xml.relsから関係性を解析
             with excel_zip.open('xl/_rels/workbook.xml.rels') as rels_xml:
                 rels_tree = ET.parse(rels_xml)
@@ -54,30 +58,47 @@ class ExcelMetadataExtractor:
                 for rel in rels_root.findall('.//Relationship', {'': self.ns['r']}):
                     r_id = rel.get('Id')
                     if r_id in sheets:
-                        sheet_id = sheets[r_id]
+                        sheet_info = sheets[r_id]
+                        sheet_id = sheet_info['id']
                         target = rel.get('Target')
+                        print(f"\nProcessing relationship - Sheet: {sheet_info['name']} (ID: {sheet_id}, rId: {r_id})")
+                        print(f"Original target path: {target}")
+
+                        # パスの正規化
                         if target.startswith('/xl/'):
-                            target = target[1:]  # 先頭の'/'を削除
+                            target = target[1:]
                         elif not target.startswith('xl/'):
                             target = f'xl/{target}'
-                        print(f"Processing sheet {sheet_id} with target: {target}")
+                        print(f"Normalized target path: {target}")
 
                         # シートごとの_rels/sheet*.xml.relsを確認
-                        sheet_rels_path = f"{os.path.splitext(target)[0]}.rels"
+                        sheet_base = os.path.splitext(target)[0]
+                        sheet_rels_path = f"{sheet_base}.rels"
+                        sheet_rels_filename = f'xl/worksheets/_rels/{os.path.basename(sheet_rels_path)}'
+
+                        print(f"Looking for rels file: {sheet_rels_filename}")
+                        print(f"Available files in zip: {[f for f in excel_zip.namelist() if 'rels' in f]}")
+
                         try:
-                            sheet_rels_filename = f'xl/worksheets/_rels/{os.path.basename(sheet_rels_path)}'
-                            print(f"Looking for drawing relations in: {sheet_rels_filename}")
+                            if sheet_rels_filename in excel_zip.namelist():
+                                print(f"Found rels file: {sheet_rels_filename}")
+                                with excel_zip.open(sheet_rels_filename) as sheet_rels:
+                                    sheet_rels_tree = ET.parse(sheet_rels)
+                                    sheet_rels_root = sheet_rels_tree.getroot()
 
-                            with excel_zip.open(sheet_rels_filename) as sheet_rels:
-                                sheet_rels_tree = ET.parse(sheet_rels)
-                                sheet_rels_root = sheet_rels_tree.getroot()
+                                    # drawingへの参照を探す
+                                    for sheet_rel in sheet_rels_root.findall('.//Relationship', {'': self.ns['r']}):
+                                        rel_type = sheet_rel.get('Type', '')
+                                        rel_target = sheet_rel.get('Target', '')
+                                        print(f"Found relationship - Type: {rel_type}, Target: {rel_target}")
 
-                                # drawingへの参照を探す
-                                for sheet_rel in sheet_rels_root.findall('.//Relationship', {'': self.ns['r']}):
-                                    if 'drawing' in sheet_rel.get('Target', ''):
-                                        drawing_path = sheet_rel.get('Target').replace('..', 'xl')
-                                        sheet_drawing_map[sheet_id] = drawing_path
-                                        print(f"Found drawing for sheet {sheet_id}: {drawing_path}")
+                                        if 'drawing' in rel_target.lower():
+                                            drawing_path = rel_target.replace('..', 'xl')
+                                            sheet_drawing_map[sheet_id] = drawing_path
+                                            print(f"Found drawing for sheet {sheet_id}: {drawing_path}")
+                            else:
+                                print(f"Rels file not found: {sheet_rels_filename}")
+
                         except KeyError as e:
                             print(f"No drawing relations found for sheet {sheet_id}: {str(e)}")
                             continue
@@ -88,7 +109,7 @@ class ExcelMetadataExtractor:
         except Exception as e:
             print(f"Error getting sheet-drawing relations: {str(e)}\n{traceback.format_exc()}")
 
-        print(f"Final sheet-drawing map: {json.dumps(sheet_drawing_map, indent=2)}")
+        print(f"\nFinal sheet-drawing map: {json.dumps(sheet_drawing_map, indent=2)}")
         return sheet_drawing_map
 
     def extract_drawing_info(self, sheet, excel_zip, drawing_path) -> List[Dict[str, Any]]:
@@ -635,7 +656,7 @@ class ExcelMetadataExtractor:
                 cell = sheet.cell(row=row, column=col)
                 cell_type = self.analyze_cell_type(cell)
 
-                # Handle merged cells
+                # Handle                # Handle merged cells
                 if isinstance(cell, openpyxl.cell.cell.MergedCell):
                     for merged_range in sheet.merged_cells.ranges:
                         if merged_range.min_row <= row <= merged_range.max_row and \
