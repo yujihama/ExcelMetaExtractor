@@ -93,30 +93,35 @@ def main():
                 st.json(metadata["fileProperties"])
 
             # Worksheets Section
-            for sheet in metadata["worksheets"]:
-                with st.expander(f"📚 Sheet: {sheet['sheetName']}", expanded=True):
-                    cols = st.columns(3)
-                    with cols[0]:
-                        st.metric("Rows", sheet["rowCount"])
-                    with cols[1]:
-                        st.metric("Columns", sheet["columnCount"])
-                    with cols[2]:
-                        st.metric("Merged Cells", len(sheet.get("mergedCells", [])))
+            for sheet_idx, sheet in enumerate(metadata["worksheets"]):
+                st.subheader(f"📚 Sheet: {sheet['sheetName']}")
 
-                    # Display regions
-                    if "regions" in sheet and sheet["regions"]:
-                        st.subheader("📍 Detected Regions")
-                        for region in sheet["regions"]:
-                            try:
-                                with st.expander(f"{region['regionType'].title()} Region - {region['range']}"):
-                                    display_region_info(region)
-                            except Exception as e:
-                                st.error(f"Error processing region: {str(e)}\nRegion data: {json.dumps(region, indent=2)}")
-                                st.error(f"Stack trace:\n{traceback.format_exc()}")
+                # Sheet metrics
+                cols = st.columns(3)
+                with cols[0]:
+                    st.metric("Rows", sheet["rowCount"])
+                with cols[1]:
+                    st.metric("Columns", sheet["columnCount"])
+                with cols[2]:
+                    st.metric("Merged Cells", len(sheet.get("mergedCells", [])))
 
-                    if sheet.get("mergedCells"):
-                        with st.expander("🔀 Merged Cells"):
-                            st.code("\n".join(sheet["mergedCells"]))
+                # Merged Cells (at same level as other sections)
+                if sheet.get("mergedCells"):
+                    st.markdown("##### 🔀 Merged Cells")
+                    st.code("\n".join(sheet["mergedCells"]))
+
+                # Regions (at same level as other sections)
+                if "regions" in sheet and sheet["regions"]:
+                    st.markdown("##### 📍 Detected Regions")
+                    for region in sheet["regions"]:
+                        try:
+                            with st.expander(f"{region['regionType'].title()} Region - {region['range']}"):
+                                display_region_info(region)
+                        except Exception as e:
+                            st.error(f"Error processing region: {str(e)}\nRegion data: {json.dumps(region, indent=2)}")
+                            st.error(f"Stack trace:\n{traceback.format_exc()}")
+
+                st.markdown("---")  # Add separator between sheets
 
             # Raw JSON View
             with st.expander("🔍 Raw JSON Data"):
