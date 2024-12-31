@@ -22,6 +22,40 @@ def display_json_tree(data, key_prefix=""):
             else:
                 st.text(f"- {item}")
 
+def display_region_info(region):
+    """Display region information in a structured format"""
+    st.write(f"📍 Region Type: {region['regionType']}")
+    st.write(f"📏 Range: {region['range']}")
+
+    if region['regionType'] == 'table':
+        with st.expander("📊 Table Structure"):
+            st.json(region['headerStructure'])
+            if 'notes' in region and region['notes']:
+                st.write("📝 Notes:", region['notes'])
+
+    elif region['regionType'] == 'text':
+        with st.expander("📝 Text Content"):
+            st.write("Content:", region['content'])
+            st.write("Classification:", region['classification'])
+            st.write("Importance:", region['importance'])
+            if 'summary' in region:
+                st.write("Summary:", region['summary'])
+            if 'keyPoints' in region and region['keyPoints']:
+                st.write("Key Points:")
+                for point in region['keyPoints']:
+                    st.write(f"• {point}")
+
+    elif region['regionType'] == 'chart':
+        with st.expander("📈 Chart Information"):
+            st.write("Chart Type:", region['chartType'])
+            st.write("Purpose:", region['purpose'])
+            if 'dataRelations' in region and region['dataRelations']:
+                st.write("Data Relations:")
+                for relation in region['dataRelations']:
+                    st.write(f"• {relation}")
+            if 'suggestedUsage' in region:
+                st.write("Suggested Usage:", region['suggestedUsage'])
+
 def main():
     st.set_page_config(
         page_title="Excel Metadata Extractor",
@@ -34,7 +68,8 @@ def main():
     Upload an Excel file to extract and view its metadata including:
     - File properties (name, size, creation date, etc.)
     - Sheet information (dimensions, protection status, etc.)
-    - Relationships and structure
+    - Detected regions (tables, text blocks, charts)
+    - AI-powered analysis of content and structure
     """)
 
     uploaded_file = st.file_uploader("Choose an Excel file", type=['xlsx', 'xlsm'])
@@ -47,15 +82,14 @@ def main():
 
             # Display sections
             st.header("📑 Extracted Metadata")
-            
+
             # File Properties Section
             with st.expander("📌 File Properties", expanded=True):
                 st.json(metadata["fileProperties"])
 
             # Worksheets Section
-            with st.expander("📚 Worksheets Information", expanded=True):
-                for sheet in metadata["worksheets"]:
-                    st.subheader(f"Sheet: {sheet['sheetName']}")
+            for sheet in metadata["worksheets"]:
+                with st.expander(f"📚 Sheet: {sheet['sheetName']}", expanded=True):
                     cols = st.columns(3)
                     with cols[0]:
                         st.metric("Rows", sheet["rowCount"])
@@ -63,10 +97,17 @@ def main():
                         st.metric("Columns", sheet["columnCount"])
                     with cols[2]:
                         st.metric("Merged Cells", len(sheet.get("mergedCells", [])))
-                    
+
+                    # Display regions
+                    if "regions" in sheet and sheet["regions"]:
+                        st.subheader("📍 Detected Regions")
+                        for region in sheet["regions"]:
+                            with st.expander(f"{region['regionType'].title()} Region - {region['range']}"):
+                                display_region_info(region)
+
                     if sheet.get("mergedCells"):
-                        st.write("Merged Cells:")
-                        st.code("\n".join(sheet["mergedCells"]))
+                        with st.expander("🔀 Merged Cells"):
+                            st.code("\n".join(sheet["mergedCells"]))
 
             # Raw JSON View
             with st.expander("🔍 Raw JSON Data"):
