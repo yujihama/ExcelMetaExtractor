@@ -13,6 +13,7 @@ class ExcelMetadataExtractor:
         self.file_obj = file_obj
         self.workbook = load_workbook(file_obj, data_only=True)
         self.openai_helper = OpenAIHelper()
+        self.MAX_CELLS_PER_ANALYSIS = 100  # 制限を設定
 
     def get_file_metadata(self) -> Dict[str, Any]:
         """Extract file-level metadata"""
@@ -78,17 +79,20 @@ class ExcelMetadataExtractor:
         return merged_cells_info
 
     def extract_region_cells(self, sheet, start_row: int, start_col: int, max_row: int, max_col: int) -> List[List[Dict[str, Any]]]:
-        """Extract cell information from a region"""
+        """Extract cell information from a region with limits"""
         cells_data = []
-        for row in range(start_row, max_row + 1):
+        # 範囲が大きすぎる場合は制限する
+        actual_max_row = min(max_row, start_row + self.MAX_CELLS_PER_ANALYSIS // (max_col - start_col + 1))
+        actual_max_col = min(max_col, start_col + self.MAX_CELLS_PER_ANALYSIS // (max_row - start_row + 1))
+
+        for row in range(start_row, actual_max_row + 1):
             row_data = []
-            for col in range(start_col, max_col + 1):
+            for col in range(start_col, actual_max_col + 1):
                 cell = sheet.cell(row=row, column=col)
                 cell_type = self.analyze_cell_type(cell)
 
                 # Handle merged cells
                 if isinstance(cell, openpyxl.cell.cell.MergedCell):
-                    # Find the master cell (top-left) of the merged range
                     for merged_range in sheet.merged_cells.ranges:
                         if merged_range.min_row <= row <= merged_range.max_row and \
                            merged_range.min_col <= col <= merged_range.max_col:
@@ -98,28 +102,33 @@ class ExcelMetadataExtractor:
                                 "col": col,
                                 "value": str(master_cell.value) if master_cell.value is not None else "",
                                 "type": cell_type,
-                                "formula": None,  # Merged cells don't have formulas
                                 "isMerged": True,
                                 "mergedRange": str(merged_range)
                             }
                             break
                     else:
-                        cell_info = {"row": row, "col": col, "value": "", "type": cell_type, "formula": None, "isMerged": True}
-
+                        cell_info = {
+                            "row": row,
+                            "col": col,
+                            "value": "",
+                            "type": cell_type,
+                            "isMerged": True
+                        }
                 else:
-                    # Regular cell
-                    formula = cell.value if isinstance(cell.value, str) and cell.value.startswith('=') else None
+                    # Regular cell - 必要最小限の情報のみを含める
                     cell_info = {
                         "row": row,
                         "col": col,
                         "value": str(cell.value) if cell.value is not None else "",
-                        "type": cell_type,
-                        "formula": formula,
-                        "isMerged": False
+                        "type": cell_type
                     }
 
                 row_data.append(cell_info)
             cells_data.append(row_data)
+
+        if max_row > actual_max_row or max_col > actual_max_col:
+            print(f"Warning: Region was truncated from {max_row-start_row+1}x{max_col-start_col+1} to {actual_max_row-start_row+1}x{actual_max_col-start_col+1} cells due to size limits")
+
         return cells_data
 
     def detect_header_structure(self, cells_data: List[List[Dict[str, Any]]]) -> Dict[str, Any]:
@@ -136,13 +145,13 @@ class ExcelMetadataExtractor:
         }
 
     def detect_regions(self, sheet) -> List[Dict[str, Any]]:
-        """Enhanced region detection with LLM assistance"""
+        """Enhanced region detection with size limits"""
         try:
             regions = []
             processed_cells = set()
 
-            for row in range(1, sheet.max_row + 1):
-                for col in range(1, sheet.max_column + 1):
+            for row in range(1, min(sheet.max_row + 1, 100)):  # 最初の100行のみを処理
+                for col in range(1, min(sheet.max_column + 1, 20)):  # 最初の20列のみを処理
                     cell_coord = f"{get_column_letter(col)}{row}"
 
                     if cell_coord in processed_cells or sheet.cell(row=row, column=col).value is None:
@@ -155,10 +164,10 @@ class ExcelMetadataExtractor:
                     if max_row - row < 1 or max_col - col < 1:
                         continue
 
-                    # Extract cells data
+                    # Extract cells data with limits
                     cells_data = self.extract_region_cells(sheet, row, col, max_row, max_col)
 
-                    # Get merged cells information
+                    # Get merged cells information (制限付き)
                     merged_cells = self.get_merged_cells_info(sheet, row, col, max_row, max_col)
 
                     # Mark cells as processed
@@ -166,12 +175,14 @@ class ExcelMetadataExtractor:
                         for c in range(col, max_col + 1):
                             processed_cells.add(f"{get_column_letter(c)}{r}")
 
-                    # Analyze region type and structure
-                    region_analysis = self.openai_helper.analyze_region_type(json.dumps({
-                        "cells": cells_data,
-                        "mergedCells": merged_cells
-                    }))
+                    # データサイズを削減したJSONを作成
+                    region_data = {
+                        "cells": cells_data[:10],  # 最初の10行のみ
+                        "mergedCells": merged_cells[:5]  # 最初の5個の結合セルのみ
+                    }
 
+                    # Analyze region type and structure
+                    region_analysis = self.openai_helper.analyze_region_type(json.dumps(region_data))
                     if isinstance(region_analysis, str):
                         region_analysis = json.loads(region_analysis)
 
@@ -181,44 +192,16 @@ class ExcelMetadataExtractor:
                     region_metadata = {
                         "regionType": region_type,
                         "range": f"{get_column_letter(col)}{row}:{get_column_letter(max_col)}{max_row}",
-                        "cells": cells_data,
+                        "sampleCells": cells_data[:3],  # サンプルとして最初の3行のみを保持
                         "mergedCells": merged_cells
                     }
 
-                    if region_type == "table":
-                        header_structure = self.detect_header_structure(cells_data)
-                        region_metadata.update({
-                            "headerStructure": header_structure,
-                            "purpose": region_analysis.get("purpose", "")
-                        })
-                    elif region_type == "text":
-                        text_content = "\n".join(
-                            str(cell["value"]) for row in cells_data for cell in row if cell["value"]
-                        )
-                        text_analysis = self.openai_helper.analyze_text_block(text_content)
-                        if isinstance(text_analysis, str):
-                            text_analysis = json.loads(text_analysis)
-                        region_metadata.update({
-                            "content": text_content,
-                            "classification": text_analysis.get("contentType", "unknown"),
-                            "importance": text_analysis.get("importance", "medium"),
-                            "summary": text_analysis.get("summary", ""),
-                            "keyPoints": text_analysis.get("keyPoints", [])
-                        })
-                    elif region_type == "chart":
-                        # Handle charts and images
-                        chart_elements = region_analysis.get("chartElements", {})
-                        chart_analysis = self.openai_helper.analyze_chart(json.dumps(chart_elements))
-                        if isinstance(chart_analysis, str):
-                            chart_analysis = json.loads(chart_analysis)
-                        region_metadata.update({
-                            "chartType": chart_analysis.get("chartType", "unknown"),
-                            "purpose": chart_analysis.get("purpose", ""),
-                            "dataRelations": chart_analysis.get("dataRelations", []),
-                            "suggestedUsage": chart_analysis.get("suggestedUsage", "")
-                        })
-
                     regions.append(region_metadata)
+
+                    # 領域数も制限する
+                    if len(regions) >= 10:  # 最大10領域まで
+                        print("Warning: Maximum number of regions reached, stopping analysis")
+                        return regions
 
             return regions
         except Exception as e:
