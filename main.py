@@ -49,10 +49,33 @@ def display_region_info(region):
         # Add additional region-specific information based on type
         if region['regionType'] == 'table':
             st.markdown("##### 📊 Table Information")
-            if 'headerStructure' in region:
-                st.json(region['headerStructure'])
+
+            # Display header structure information
+            st.markdown("**Header Structure:**")
+            cols = st.columns(3)
+            with cols[0]:
+                st.metric("Header Type", region.get('headerStructure', {}).get('headerType', 'Unknown'))
+            with cols[1]:
+                st.metric("Header Rows", region.get('headerStructure', {}).get('headerRowsCount', 0))
+            with cols[2]:
+                has_merged = region.get('headerStructure', {}).get('mergedCells', False)
+                st.metric("Has Merged Cells", "Yes" if has_merged else "No")
+
+            # Display header cells if available
+            if region.get('sampleCells') and len(region['sampleCells']) > 0:
+                st.markdown("**Header Content:**")
+                header_rows = region['sampleCells'][:region.get('headerStructure', {}).get('headerRowsCount', 1)]
+                if header_rows:
+                    header_data = []
+                    for row in header_rows:
+                        row_data = {f"Column {cell['col']}": cell['value'] for cell in row}
+                        header_data.append(row_data)
+                    st.dataframe(pd.DataFrame(header_data))
+
+            # Display any additional table information
             if 'purpose' in region:
-                st.write("📝 Purpose:", region['purpose'])
+                st.markdown("**Table Purpose:**")
+                st.write(region['purpose'])
 
         elif region['regionType'] == 'text':
             st.markdown("##### 📝 Text Information")
