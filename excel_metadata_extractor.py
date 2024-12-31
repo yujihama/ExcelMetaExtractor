@@ -124,7 +124,7 @@ class ExcelMetadataExtractor:
                         # 図形の位置情報を取得
                         from_elem = anchor.find('.//xdr:from', self.ns)
                         to_elem = anchor.find('.//xdr:to', self.ns) or \
-                                     anchor.find('.//xdr:ext', self.ns)  # oneCellAnchorの場合
+                                 anchor.find('.//xdr:ext', self.ns)  # oneCellAnchorの場合
 
                         # absoluteAnchorの場合は位置情報を変換
                         if anchor.tag.endswith('absoluteAnchor'):
@@ -223,27 +223,14 @@ class ExcelMetadataExtractor:
             if sp_pr is None:
                 return None
 
-            # 座標情報の取得 (a:xfrm)
-            xfrm = sp_pr.find('.//a:xfrm', self.ns)
-            coordinates = {}
-            if xfrm is not None:
-                # 開始座標 (a:off)
-                off = xfrm.find('.//a:off', self.ns)
-                if off is not None:
-                    coordinates['x'] = off.get('x')
-                    coordinates['y'] = off.get('y')
-
-                # 幅・高さ (a:ext)
-                ext = xfrm.find('.//a:ext', self.ns)
-                if ext is not None:
-                    coordinates['cx'] = ext.get('cx')
-                    coordinates['cy'] = ext.get('cy')
-
-            # テキスト情報の取得
+            # テキスト情報の取得（日本語対応）
             texts = []
-            for t_elem in sp_elem.findall('.//a:t', self.ns):
-                if t_elem.text:
-                    texts.append(t_elem.text)
+            for p_elem in sp_elem.findall('.//a:p', self.ns):
+                for r_elem in p_elem.findall('.//a:r', self.ns):
+                    t_elem = r_elem.find('a:t', self.ns)
+                    if t_elem is not None and t_elem.text:
+                        texts.append(t_elem.text)
+
             text_content = ''.join(texts)
 
             # 基本情報の構築
@@ -252,7 +239,6 @@ class ExcelMetadataExtractor:
                 "name": nv_sp_pr.find('.//xdr:cNvPr', self.ns).get('name', ''),
                 "description": nv_sp_pr.find('.//xdr:cNvPr', self.ns).get('descr', ''),
                 "hidden": nv_sp_pr.find('.//xdr:cNvSpPr', self.ns).get('hidden', 'false') == 'true',
-                "coordinates_emu": coordinates,  # EMU単位での座標
                 "text_content": text_content
             }
 
@@ -261,10 +247,54 @@ class ExcelMetadataExtractor:
             if preset_geom is not None:
                 shape_info["shape_type"] = preset_geom.get('prst', 'unknown')
 
+            # セル座標とオフセットの取得
+            anchor = sp_elem.getparent()  # 親要素（twoCellAnchor/oneCellAnchor）を取得
+            if anchor is not None:
+                from_elem = anchor.find('xdr:from', self.ns)
+                to_elem = anchor.find('xdr:to', self.ns)
+
+                if from_elem is not None and to_elem is not None:
+                    # セル座標の取得
+                    from_col = int(from_elem.find('xdr:col', self.ns).text)
+                    from_row = int(from_elem.find('xdr:row', self.ns).text)
+                    to_col = int(to_elem.find('xdr:col', self.ns).text)
+                    to_row = int(to_elem.find('xdr:row', self.ns).text)
+
+                    # オフセットの取得（EMU単位）
+                    from_col_off = int(from_elem.find('xdr:colOff', self.ns).text)
+                    from_row_off = int(from_elem.find('xdr:rowOff', self.ns).text)
+                    to_col_off = int(to_elem.find('xdr:colOff', self.ns).text)
+                    to_row_off = int(to_elem.find('xdr:rowOff', self.ns).text)
+
+                    # EMUをセル単位に変換（1インチ = 914400 EMU, 1セル ≈ 0.75インチ）
+                    EMU_PER_CELL = 914400 * 0.75
+
+                    from_col_adj = from_col + (from_col_off / EMU_PER_CELL)
+                    from_row_adj = from_row + (from_row_off / EMU_PER_CELL)
+                    to_col_adj = to_col + (to_col_off / EMU_PER_CELL)
+                    to_row_adj = to_row + (to_row_off / EMU_PER_CELL)
+
+                    shape_info["coordinates"] = {
+                        "from": {
+                            "col": int(from_col_adj) + 1,
+                            "row": int(from_row_adj) + 1
+                        },
+                        "to": {
+                            "col": int(to_col_adj) + 1,
+                            "row": int(to_row_adj) + 1
+                        }
+                    }
+
+                    # レンジ文字列を生成
+                    shape_info["range"] = (
+                        f"{get_column_letter(int(from_col_adj) + 1)}{int(from_row_adj) + 1}:"
+                        f"{get_column_letter(int(to_col_adj) + 1)}{int(to_row_adj) + 1}"
+                    )
+
             return shape_info
 
         except Exception as e:
-            print(f"Error extracting shape info: {str(e)}")
+            print(f"Error extracting shape info: {str(e)}\n{traceback.format_exc()}")
             return None
 
     def _emu_to_cell_coordinates(self, x: Optional[str], y: Optional[str], cx: Optional[str], cy: Optional[str]) -> Dict[str, Any]:
