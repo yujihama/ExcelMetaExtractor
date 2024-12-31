@@ -267,10 +267,14 @@ class ExcelMetadataExtractor:
             texts = []
             for p_elem in sp_elem.findall('.//a:p', self.ns):
                 paragraph_texts = []
-                # テキスト実行（runs）を処理
+                # まずa:rの中のテキストを処理
                 for r_elem in p_elem.findall('.//a:r', self.ns):
-                    t_elem = r_elem.find('a:t', self.ns)
+                    t_elem = r_elem.find('.//a:t', self.ns)
                     if t_elem is not None and t_elem.text:
+                        paragraph_texts.append(t_elem.text)
+                # 次にa:p直下のa:tを処理（テキストボックスなど）
+                for t_elem in p_elem.findall('.//a:t', self.ns):
+                    if t_elem.text:
                         paragraph_texts.append(t_elem.text)
                 # 段落のテキストを結合
                 if paragraph_texts:
