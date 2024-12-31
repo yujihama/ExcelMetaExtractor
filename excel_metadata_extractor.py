@@ -22,7 +22,8 @@ class ExcelMetadataExtractor:
             'a': 'http://schemas.openxmlformats.org/drawingml/2006/main',
             'xdr': 'http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing',
             'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
-            'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'
+            'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart',
+            'sp': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
         }
 
     def get_sheet_drawing_relations(self, excel_zip) -> Dict[str, str]:
@@ -37,10 +38,12 @@ class ExcelMetadataExtractor:
 
                 # シートIDとシート名の対応を取得
                 sheets = {}
-                for sheet in wb_root.findall('.//sheet', {'r': self.ns['r']}):
+                for sheet in wb_root.findall('.//sp:sheet', self.ns):
                     sheet_id = sheet.get('sheetId')
                     r_id = sheet.get(f'{{{self.ns["r"]}}}id')
+                    sheet_name = sheet.get('name', '')
                     sheets[r_id] = sheet_id
+                    print(f"Found sheet: {sheet_name} (ID: {sheet_id}, rId: {r_id})")
 
             # xl/_rels/workbook.xml.relsから関係性を解析
             with excel_zip.open('xl/_rels/workbook.xml.rels') as rels_xml:
@@ -57,11 +60,15 @@ class ExcelMetadataExtractor:
                             target = target[1:]  # 先頭の'/'を削除
                         elif not target.startswith('xl/'):
                             target = f'xl/{target}'
+                        print(f"Processing sheet {sheet_id} with target: {target}")
 
                         # シートごとの_rels/sheet*.xml.relsを確認
                         sheet_rels_path = f"{os.path.splitext(target)[0]}.rels"
                         try:
-                            with excel_zip.open(f'xl/worksheets/_rels/{os.path.basename(sheet_rels_path)}') as sheet_rels:
+                            sheet_rels_filename = f'xl/worksheets/_rels/{os.path.basename(sheet_rels_path)}'
+                            print(f"Looking for drawing relations in: {sheet_rels_filename}")
+
+                            with excel_zip.open(sheet_rels_filename) as sheet_rels:
                                 sheet_rels_tree = ET.parse(sheet_rels)
                                 sheet_rels_root = sheet_rels_tree.getroot()
 
@@ -70,13 +77,18 @@ class ExcelMetadataExtractor:
                                     if 'drawing' in sheet_rel.get('Target', ''):
                                         drawing_path = sheet_rel.get('Target').replace('..', 'xl')
                                         sheet_drawing_map[sheet_id] = drawing_path
-                        except KeyError:
-                            # シートにdrawingがない場合はスキップ
+                                        print(f"Found drawing for sheet {sheet_id}: {drawing_path}")
+                        except KeyError as e:
+                            print(f"No drawing relations found for sheet {sheet_id}: {str(e)}")
+                            continue
+                        except Exception as e:
+                            print(f"Error processing sheet relations for sheet {sheet_id}: {str(e)}")
                             continue
 
         except Exception as e:
             print(f"Error getting sheet-drawing relations: {str(e)}\n{traceback.format_exc()}")
 
+        print(f"Final sheet-drawing map: {json.dumps(sheet_drawing_map, indent=2)}")
         return sheet_drawing_map
 
     def extract_drawing_info(self, sheet, excel_zip, drawing_path) -> List[Dict[str, Any]]:
