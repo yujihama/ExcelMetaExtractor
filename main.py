@@ -34,7 +34,8 @@ def display_region_info(region):
             st.markdown("##### 🔷 Shape Information")
             cols = st.columns(2)
             with cols[0]:
-                st.metric("Shape Type", region.get('shape_type', 'Unknown').title())
+                if 'shape_type' in region and region['shape_type']: #Added condition to check for shape_type
+                    st.metric("Shape Type", region.get('shape_type', 'Unknown').title())
                 if region.get('name'):
                     st.text(f"Name: {region['name']}")
             with cols[1]:
@@ -44,7 +45,7 @@ def display_region_info(region):
             # Display shape text content if available
             if region.get('text_content'):
                 st.markdown("**Text Content:**")
-                st.text_area("", region['text_content'], height=100, disabled=True)
+                st.text_area("", region['text_content'], height=100, disabled=True) #using text_area for better readability
 
         elif region['regionType'] in ['image', 'smartart', 'chart']:
             st.markdown("##### 🖼️ Drawing Information")

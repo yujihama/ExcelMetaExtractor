@@ -290,8 +290,8 @@ class ExcelMetadataExtractor:
 
             # プリセット形状の情報を追加
             preset_geom = sp_pr.find('.//a:prstGeom', self.ns)
-            if preset_geom is not None:
-                shape_info["shape_type"] = preset_geom.get('prst', 'unknown')
+            if preset_geom is not None and preset_geom.get('prst'):
+                shape_info["shape_type"] = preset_geom.get('prst')
 
             # アンカーから座標情報を取得
             from_elem = anchor.find('xdr:from', self.ns)
