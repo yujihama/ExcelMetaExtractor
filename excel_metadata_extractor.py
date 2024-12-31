@@ -336,10 +336,10 @@ class ExcelMetadataExtractor:
                         }
                     }
 
-                    # レンジ文字列を生成
+                    # レンジ文字列を生成（実際のセル座標を使用）
                     shape_info["range"] = (
-                        f"{get_column_letter(int(from_col_adj) + 1)}{int(from_row_adj) + 1}:"
-                        f"{get_column_letter(int(to_col_adj) + 1)}{int(to_row_adj) + 1}"
+                        f"{get_column_letter(from_col + 1)}{from_row + 1}:"
+                        f"{get_column_letter(to_col + 1)}{to_row + 1}"
                     )
 
             return shape_info
