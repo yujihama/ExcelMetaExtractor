@@ -26,15 +26,15 @@ def display_json_tree(data, key_prefix=""):
 def display_region_info(region):
     """Display region information in a structured format"""
     try:
-        st.write(f"📍 Region Type: {region['regionType']}")
-        st.write(f"📏 Range: {region['range']}")
+        st.write(f"Region Type: {region['regionType']}")
+        st.write(f"Range: {region['range']}")
 
         # Shape specific information
         if region['regionType'] == 'shape':
-            st.markdown("##### 🔷 Shape Information")
+            st.markdown("Shape Information")
             cols = st.columns(2)
             with cols[0]:
-                if 'shape_type' in region and region['shape_type']: #Added condition to check for shape_type
+                if 'shape_type' in region and region['shape_type']:
                     st.metric("Shape Type", region.get('shape_type', 'Unknown').title())
                 if region.get('name'):
                     st.text(f"Name: {region['name']}")
@@ -42,15 +42,12 @@ def display_region_info(region):
                 if region.get('description'):
                     st.text(f"Description: {region['description']}")
 
-            # Display shape text content if available
             if 'text_content' in region:
-                st.markdown("##### 📝 Text Content")
+                st.markdown("Text Content")
                 st.text(region['text_content'])
 
         elif region['regionType'] in ['image', 'smartart', 'chart']:
-            st.markdown("##### 🖼️ Drawing Information")
-
-            # 基本情報の表示
+            st.markdown("Drawing Information")
             cols = st.columns(2)
             with cols[0]:
                 st.metric("Type", region['type'].title())
@@ -60,33 +57,29 @@ def display_region_info(region):
                 if region.get('description'):
                     st.text(f"Description: {region['description']}")
 
-            # 座標情報の表示
             if 'coordinates' in region:
-                st.markdown("**Position:**")
+                st.markdown("Position:")
                 coords = region['coordinates']
                 st.text(f"From: Column {coords['from']['col']}, Row {coords['from']['row']}")
                 st.text(f"To: Column {coords['to']['col']}, Row {coords['to']['row']}")
 
-            # 図形タイプ別の特殊情報
             if region['type'] == 'image':
                 if 'image_ref' in region:
-                    st.markdown("**Image Details:**")
+                    st.markdown("Image Details:")
                     st.text(f"Reference: {region['image_ref']}")
             elif region['type'] == 'smartart':
                 if 'diagram_type' in region:
-                    st.markdown("**SmartArt Details:**")
+                    st.markdown("SmartArt Details:")
                     st.text(f"Diagram Type: {region['diagram_type']}")
             elif region['type'] == 'chart':
                 if 'chart_ref' in region:
-                    st.markdown("**Chart Details:**")
+                    st.markdown("Chart Details:")
                     st.text(f"Chart Reference: {region['chart_ref']}")
 
         elif region['regionType'] == 'table':
-            st.markdown("##### 📊 Table Information")
-
-            # Display header structure information
+            st.markdown("Table Information")
             if 'headerStructure' in region:
-                st.markdown("**Header Structure:**")
+                st.markdown("Header Structure:")
                 cols = st.columns(3)
                 with cols[0]:
                     header_type = region['headerStructure'].get('headerType', 'Unknown')
@@ -98,18 +91,8 @@ def display_region_info(region):
                     has_merged = region['headerStructure'].get('mergedCells', False)
                     st.metric("Has Merged Cells", "Yes" if has_merged else "No")
 
-            # Display sample cells if available
-            if 'sampleCells' in region and region['sampleCells']:
-                st.markdown("**Sample Data:**")
-                sample_data = []
-                for row in region['sampleCells']:
-                    row_data = {f"Column {cell['col']}": cell['value'] for cell in row}
-                    sample_data.append(row_data)
-                if sample_data:
-                    st.dataframe(pd.DataFrame(sample_data))
-
         elif region['regionType'] == 'text':
-            st.markdown("##### 📝 Text Information")
+            st.markdown("Text Information")
             if 'content' in region:
                 st.text_area("Content", region['content'], height=100)
             if 'classification' in region:
@@ -119,7 +102,7 @@ def display_region_info(region):
 
         # Display merged cells if available
         if 'mergedCells' in region and region['mergedCells']:
-            st.markdown("##### 🔀 Merged Cells")
+            st.markdown("Merged Cells")
             for merged in region['mergedCells']:
                 st.text(f"Range: {merged['range']} - Value: {merged.get('value', 'N/A')}")
 
