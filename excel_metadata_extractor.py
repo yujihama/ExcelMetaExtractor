@@ -1,9 +1,9 @@
-from datetime import datetime
 import os
 import json
+from datetime import datetime
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional, Tuple
 from openai_helper import OpenAIHelper
 import traceback
 
@@ -33,8 +33,173 @@ class ExcelMetadataExtractor:
             print(f"Error in get_file_metadata: {str(e)}\n{traceback.format_exc()}")
             raise
 
+    def analyze_cell_type(self, cell) -> str:
+        """Analyze the type of a cell's content"""
+        if cell.value is None:
+            return "empty"
+        if isinstance(cell.value, (int, float)):
+            return "numeric"
+        if isinstance(cell.value, datetime):
+            return "date"
+        return "text"
+
+    def find_region_boundaries(self, sheet, start_row: int, start_col: int) -> Tuple[int, int]:
+        """Find the boundaries of a contiguous region"""
+        max_row = start_row
+        max_col = start_col
+
+        # Scan downward
+        for row in range(start_row, sheet.max_row + 1):
+            if all(sheet.cell(row=row, column=col).value is None 
+                  for col in range(start_col, min(start_col + 3, sheet.max_column + 1))):
+                break
+            max_row = row
+
+        # Scan rightward
+        for col in range(start_col, sheet.max_column + 1):
+            if all(sheet.cell(row=row, column=col).value is None 
+                  for row in range(start_row, min(start_row + 3, max_row + 1))):
+                break
+            max_col = col
+
+        return max_row, max_col
+
+    def get_merged_cells_info(self, sheet, start_row: int, start_col: int, max_row: int, max_col: int) -> List[Dict[str, Any]]:
+        """Get information about merged cells in the region"""
+        merged_cells_info = []
+        for merged_range in sheet.merged_cells.ranges:
+            if (merged_range.min_row >= start_row and merged_range.max_row <= max_row and
+                merged_range.min_col >= start_col and merged_range.max_col <= max_col):
+                merged_cells_info.append({
+                    "range": str(merged_range),
+                    "value": sheet.cell(row=merged_range.min_row, column=merged_range.min_col).value
+                })
+        return merged_cells_info
+
+    def extract_region_cells(self, sheet, start_row: int, start_col: int, max_row: int, max_col: int) -> List[List[Dict[str, Any]]]:
+        """Extract cell information from a region"""
+        cells_data = []
+        for row in range(start_row, max_row + 1):
+            row_data = []
+            for col in range(start_col, max_col + 1):
+                cell = sheet.cell(row=row, column=col)
+                cell_type = self.analyze_cell_type(cell)
+                cell_info = {
+                    "row": row,
+                    "col": col,
+                    "value": str(cell.value) if cell.value is not None else "",
+                    "type": cell_type,
+                    "formula": cell.internal_value if isinstance(cell.internal_value, str) and cell.internal_value.startswith('=') else None
+                }
+                row_data.append(cell_info)
+            cells_data.append(row_data)
+        return cells_data
+
+    def detect_header_structure(self, cells_data: List[List[Dict[str, Any]]]) -> Dict[str, Any]:
+        """Analyze header structure using pattern recognition and LLM"""
+        # Convert cells data to a format suitable for LLM analysis
+        header_analysis = self.openai_helper.analyze_table_structure(json.dumps(cells_data))
+        if isinstance(header_analysis, str):
+            header_analysis = json.loads(header_analysis)
+
+        return {
+            "headerType": header_analysis.get("headerType", "single"),
+            "headerRowsCount": header_analysis.get("headerRowsCount", 1),
+            "confidence": header_analysis.get("confidence", 0.0)
+        }
+
+    def detect_regions(self, sheet) -> List[Dict[str, Any]]:
+        """Enhanced region detection with LLM assistance"""
+        try:
+            regions = []
+            processed_cells = set()
+
+            for row in range(1, sheet.max_row + 1):
+                for col in range(1, sheet.max_column + 1):
+                    cell_coord = f"{get_column_letter(col)}{row}"
+
+                    if cell_coord in processed_cells or sheet.cell(row=row, column=col).value is None:
+                        continue
+
+                    # Find region boundaries
+                    max_row, max_col = self.find_region_boundaries(sheet, row, col)
+
+                    # Skip if region is too small
+                    if max_row - row < 1 or max_col - col < 1:
+                        continue
+
+                    # Extract cells data
+                    cells_data = self.extract_region_cells(sheet, row, col, max_row, max_col)
+
+                    # Get merged cells information
+                    merged_cells = self.get_merged_cells_info(sheet, row, col, max_row, max_col)
+
+                    # Mark cells as processed
+                    for r in range(row, max_row + 1):
+                        for c in range(col, max_col + 1):
+                            processed_cells.add(f"{get_column_letter(c)}{r}")
+
+                    # Analyze region type and structure
+                    region_analysis = self.openai_helper.analyze_region_type(json.dumps({
+                        "cells": cells_data,
+                        "mergedCells": merged_cells
+                    }))
+
+                    if isinstance(region_analysis, str):
+                        region_analysis = json.loads(region_analysis)
+
+                    region_type = region_analysis.get("regionType", "unknown")
+
+                    # Create region metadata based on type
+                    region_metadata = {
+                        "regionType": region_type,
+                        "range": f"{get_column_letter(col)}{row}:{get_column_letter(max_col)}{max_row}",
+                        "cells": cells_data,
+                        "mergedCells": merged_cells
+                    }
+
+                    if region_type == "table":
+                        header_structure = self.detect_header_structure(cells_data)
+                        region_metadata.update({
+                            "headerStructure": header_structure,
+                            "purpose": region_analysis.get("purpose", "")
+                        })
+                    elif region_type == "text":
+                        text_content = "\n".join(
+                            str(cell["value"]) for row in cells_data for cell in row if cell["value"]
+                        )
+                        text_analysis = self.openai_helper.analyze_text_block(text_content)
+                        if isinstance(text_analysis, str):
+                            text_analysis = json.loads(text_analysis)
+                        region_metadata.update({
+                            "content": text_content,
+                            "classification": text_analysis.get("contentType", "unknown"),
+                            "importance": text_analysis.get("importance", "medium"),
+                            "summary": text_analysis.get("summary", ""),
+                            "keyPoints": text_analysis.get("keyPoints", [])
+                        })
+                    elif region_type == "chart":
+                        # Handle charts and images
+                        chart_elements = region_analysis.get("chartElements", {})
+                        chart_analysis = self.openai_helper.analyze_chart(json.dumps(chart_elements))
+                        if isinstance(chart_analysis, str):
+                            chart_analysis = json.loads(chart_analysis)
+                        region_metadata.update({
+                            "chartType": chart_analysis.get("chartType", "unknown"),
+                            "purpose": chart_analysis.get("purpose", ""),
+                            "dataRelations": chart_analysis.get("dataRelations", []),
+                            "suggestedUsage": chart_analysis.get("suggestedUsage", "")
+                        })
+
+                    regions.append(region_metadata)
+
+            return regions
+        except Exception as e:
+            print(f"Error in detect_regions: {str(e)}\n{traceback.format_exc()}")
+            raise
+
     def get_sheet_metadata(self) -> list:
-        """Extract sheet-level metadata"""
+        """Extract enhanced sheet-level metadata"""
         try:
             sheets_metadata = []
 
@@ -44,23 +209,18 @@ class ExcelMetadataExtractor:
                 # Get merged cells
                 merged_cells = [str(cell_range) for cell_range in sheet.merged_cells.ranges]
 
-                # Get sheet dimensions
-                max_row = sheet.max_row
-                max_col = sheet.max_column
-
-                # Get pivots and charts
-                pivot_tables = getattr(sheet, '_pivots', [])
-                charts = getattr(sheet, '_charts', [])
+                # Detect regions with enhanced analysis
+                regions = self.detect_regions(sheet)
 
                 sheet_meta = {
                     "sheetName": sheet_name,
                     "isProtected": sheet.protection.sheet,
-                    "rowCount": max_row,
-                    "columnCount": max_col,
-                    "hasPivotTables": len(pivot_tables) > 0,
-                    "hasCharts": len(charts) > 0,
+                    "rowCount": sheet.max_row,
+                    "columnCount": sheet.max_column,
+                    "hasPivotTables": bool(getattr(sheet, '_pivots', [])),
+                    "hasCharts": bool(getattr(sheet, '_charts', [])),
                     "mergedCells": merged_cells,
-                    "regions": self.detect_regions(sheet)
+                    "regions": regions
                 }
 
                 sheets_metadata.append(sheet_meta)
@@ -70,187 +230,8 @@ class ExcelMetadataExtractor:
             print(f"Error in get_sheet_metadata: {str(e)}\n{traceback.format_exc()}")
             raise
 
-    def detect_regions(self, sheet) -> List[Dict[str, Any]]:
-        """Detect and analyze regions in the sheet"""
-        try:
-            regions = []
-            max_row = sheet.max_row
-            max_col = sheet.max_column
-
-            # Track processed cells to avoid duplicate analysis
-            processed_cells = set()
-
-            for row in range(1, max_row + 1):
-                for col in range(1, max_col + 1):
-                    cell_coord = f"{get_column_letter(col)}{row}"
-
-                    if cell_coord in processed_cells:
-                        continue
-
-                    # Get current cell
-                    cell = sheet[cell_coord]
-
-                    if cell.value is None:
-                        continue
-
-                    # Detect table regions
-                    table_region = self.detect_table_region(sheet, row, col, processed_cells)
-                    if table_region:
-                        regions.append(table_region)
-                        continue
-
-                    # Detect text regions
-                    text_region = self.detect_text_region(sheet, row, col, processed_cells)
-                    if text_region:
-                        regions.append(text_region)
-                        continue
-
-                    # Detect image/chart regions
-                    image_region = self.detect_image_region(sheet, row, col)
-                    if image_region:
-                        regions.append(image_region)
-                        continue
-
-            return regions
-        except Exception as e:
-            print(f"Error in detect_regions: {str(e)}\n{traceback.format_exc()}")
-            raise
-
-    def detect_table_region(self, sheet, start_row: int, start_col: int, processed_cells: set) -> Dict[str, Any]:
-        """Detect and analyze table regions"""
-        try:
-            # Check surrounding cells to determine if it's a table
-            max_row = start_row
-            max_col = start_col
-
-            # Find table boundaries
-            for row in range(start_row, sheet.max_row + 1):
-                if all(sheet.cell(row=row, column=col).value is None for col in range(start_col, start_col + 2)):
-                    break
-                max_row = row
-
-            for col in range(start_col, sheet.max_column + 1):
-                if all(sheet.cell(row=row, column=col).value is None for row in range(start_row, start_row + 2)):
-                    break
-                max_col = col
-
-            # If region is too small, it's not a table
-            if max_row - start_row < 1 or max_col - start_col < 1:
-                return None
-
-            # Extract cells data for analysis
-            cells_data = []
-            for row in range(start_row, max_row + 1):
-                for col in range(start_col, max_col + 1):
-                    cell = sheet.cell(row=row, column=col)
-                    cell_coord = f"{get_column_letter(col)}{row}"
-                    processed_cells.add(cell_coord)
-
-                    cells_data.append({
-                        "row": row,
-                        "col": col,
-                        "value": str(cell.value) if cell.value is not None else "",
-                        "formula": cell.internal_value if isinstance(cell.internal_value, str) and cell.internal_value.startswith('=') else None
-                    })
-
-            # Analyze table structure using LLM
-            analysis = self.openai_helper.analyze_table_structure(json.dumps(cells_data))
-            if not isinstance(analysis, dict):
-                print(f"Unexpected analysis response: {analysis}")
-                return None
-
-            if not analysis.get("isTable", False):
-                return None
-
-            return {
-                "regionType": "table",
-                "range": f"{get_column_letter(start_col)}{start_row}:{get_column_letter(max_col)}{max_row}",
-                "headerStructure": {
-                    "headerType": analysis.get("headerType", "single"),
-                    "headerRowsCount": analysis.get("headerRowsCount", 1),
-                    "mergedCells": any(cell.coordinate in sheet.merged_cells for cell in sheet[f"{get_column_letter(start_col)}{start_row}:{get_column_letter(max_col)}{start_row}"])
-                },
-                "cells": cells_data,
-                "notes": analysis.get("purpose", "")
-            }
-        except Exception as e:
-            print(f"Error in detect_table_region: {str(e)}\n{traceback.format_exc()}")
-            return None
-
-    def detect_text_region(self, sheet, start_row: int, start_col: int, processed_cells: set) -> Dict[str, Any]:
-        """Detect and analyze text regions"""
-        try:
-            text_content = []
-            max_row = start_row
-
-            # Find text block boundaries
-            for row in range(start_row, min(start_row + 10, sheet.max_row + 1)):
-                cell = sheet.cell(row=row, column=start_col)
-                if cell.value is None:
-                    break
-
-                cell_coord = f"{get_column_letter(start_col)}{row}"
-                if cell_coord in processed_cells:
-                    continue
-
-                text_content.append(str(cell.value))
-                processed_cells.add(cell_coord)
-                max_row = row
-
-            if not text_content:
-                return None
-
-            # Analyze text content using LLM
-            analysis = self.openai_helper.analyze_text_block("\n".join(text_content))
-            if not isinstance(analysis, dict):
-                print(f"Unexpected text analysis response: {analysis}")
-                return None
-
-            return {
-                "regionType": "text",
-                "range": f"{get_column_letter(start_col)}{start_row}:{get_column_letter(start_col)}{max_row}",
-                "content": "\n".join(text_content),
-                "classification": analysis.get("contentType", "unknown"),
-                "importance": analysis.get("importance", "medium"),
-                "summary": analysis.get("summary", ""),
-                "keyPoints": analysis.get("keyPoints", [])
-            }
-        except Exception as e:
-            print(f"Error in detect_text_region: {str(e)}\n{traceback.format_exc()}")
-            return None
-
-    def detect_image_region(self, sheet, row: int, col: int) -> Dict[str, Any]:
-        """Detect and analyze image/chart regions"""
-        try:
-            charts = getattr(sheet, '_charts', [])
-            for chart in charts:
-                if hasattr(chart, '_chart_type'):
-                    chart_elements = {
-                        "type": chart._chart_type,
-                        "title": chart.title.text if hasattr(chart.title, 'text') else None,
-                        "hasLegend": chart.has_legend if hasattr(chart, 'has_legend') else False
-                    }
-
-                    # Analyze chart using LLM
-                    analysis = self.openai_helper.analyze_chart(json.dumps(chart_elements))
-                    if not isinstance(analysis, dict):
-                        print(f"Unexpected chart analysis response: {analysis}")
-                        return None
-
-                    return {
-                        "regionType": "chart",
-                        "chartType": analysis.get("chartType", chart._chart_type),
-                        "purpose": analysis.get("purpose", ""),
-                        "dataRelations": analysis.get("dataRelations", []),
-                        "suggestedUsage": analysis.get("suggestedUsage", "")
-                    }
-            return None
-        except Exception as e:
-            print(f"Error in detect_image_region: {str(e)}\n{traceback.format_exc()}")
-            return None
-
     def extract_all_metadata(self) -> Dict[str, Any]:
-        """Extract all metadata and return in specified JSON format"""
+        """Extract all metadata with enhanced analysis"""
         try:
             file_metadata = self.get_file_metadata()
             sheets_metadata = self.get_sheet_metadata()
