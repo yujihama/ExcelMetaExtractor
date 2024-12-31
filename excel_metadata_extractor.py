@@ -1,5 +1,6 @@
 import os
 import json
+import math
 from datetime import datetime
 import zipfile
 import xml.etree.ElementTree as ET
@@ -262,15 +263,21 @@ class ExcelMetadataExtractor:
             if sp_pr is None:
                 return None
 
-            # テキスト情報の取得（日本語対応）
+            # テキスト情報の取得（日本語対応、段落区切り対応）
             texts = []
             for p_elem in sp_elem.findall('.//a:p', self.ns):
+                paragraph_texts = []
+                # テキスト実行（runs）を処理
                 for r_elem in p_elem.findall('.//a:r', self.ns):
                     t_elem = r_elem.find('a:t', self.ns)
                     if t_elem is not None and t_elem.text:
-                        texts.append(t_elem.text)
-
-            text_content = ''.join(texts)
+                        paragraph_texts.append(t_elem.text)
+                # 段落のテキストを結合
+                if paragraph_texts:
+                    texts.append(''.join(paragraph_texts))
+            
+            # 段落を改行で結合
+            text_content = '\n'.join(texts) if texts else ''
 
             # 基本情報の構築
             shape_info = {
@@ -303,13 +310,20 @@ class ExcelMetadataExtractor:
                     to_col_off = int(to_elem.find('xdr:colOff', self.ns).text)
                     to_row_off = int(to_elem.find('xdr:rowOff', self.ns).text)
 
-                    # EMUをセル単位に変換（1インチ = 914400 EMU, 1セル ≈ 0.75インチ）
-                    EMU_PER_CELL = 914400 * 0.75
+                    # EMUをセル単位に変換（1セル = 914400 EMU）
+                    EMU_PER_CELL = 914400
 
+                    # オフセットを小数点以下まで計算
                     from_col_adj = from_col + (from_col_off / EMU_PER_CELL)
                     from_row_adj = from_row + (from_row_off / EMU_PER_CELL)
                     to_col_adj = to_col + (to_col_off / EMU_PER_CELL)
                     to_row_adj = to_row + (to_row_off / EMU_PER_CELL)
+
+                    # 境界をまたぐ場合は次のセルに
+                    if from_col_off > 0: from_col_adj = math.ceil(from_col_adj)
+                    if from_row_off > 0: from_row_adj = math.ceil(from_row_adj)
+                    if to_col_off > 0: to_col_adj = math.ceil(to_col_adj)
+                    if to_row_off > 0: to_row_adj = math.ceil(to_row_adj)
 
                     shape_info["coordinates"] = {
                         "from": {
