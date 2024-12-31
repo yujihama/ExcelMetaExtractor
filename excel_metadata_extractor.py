@@ -2,6 +2,7 @@ import os
 import json
 from datetime import datetime
 from openpyxl import load_workbook
+import openpyxl.cell.cell  # Add this import for MergedCell type checking
 from openpyxl.utils import get_column_letter
 from typing import Dict, Any, List, Optional, Tuple
 from openai_helper import OpenAIHelper
@@ -50,14 +51,14 @@ class ExcelMetadataExtractor:
 
         # Scan downward
         for row in range(start_row, sheet.max_row + 1):
-            if all(sheet.cell(row=row, column=col).value is None 
+            if all(sheet.cell(row=row, column=col).value is None
                   for col in range(start_col, min(start_col + 3, sheet.max_column + 1))):
                 break
             max_row = row
 
         # Scan rightward
         for col in range(start_col, sheet.max_column + 1):
-            if all(sheet.cell(row=row, column=col).value is None 
+            if all(sheet.cell(row=row, column=col).value is None
                   for row in range(start_row, min(start_row + 3, max_row + 1))):
                 break
             max_col = col
@@ -84,13 +85,39 @@ class ExcelMetadataExtractor:
             for col in range(start_col, max_col + 1):
                 cell = sheet.cell(row=row, column=col)
                 cell_type = self.analyze_cell_type(cell)
-                cell_info = {
-                    "row": row,
-                    "col": col,
-                    "value": str(cell.value) if cell.value is not None else "",
-                    "type": cell_type,
-                    "formula": cell.internal_value if isinstance(cell.internal_value, str) and cell.internal_value.startswith('=') else None
-                }
+
+                # Handle merged cells
+                if isinstance(cell, openpyxl.cell.cell.MergedCell):
+                    # Find the master cell (top-left) of the merged range
+                    for merged_range in sheet.merged_cells.ranges:
+                        if merged_range.min_row <= row <= merged_range.max_row and \
+                           merged_range.min_col <= col <= merged_range.max_col:
+                            master_cell = sheet.cell(row=merged_range.min_row, column=merged_range.min_col)
+                            cell_info = {
+                                "row": row,
+                                "col": col,
+                                "value": str(master_cell.value) if master_cell.value is not None else "",
+                                "type": cell_type,
+                                "formula": None,  # Merged cells don't have formulas
+                                "isMerged": True,
+                                "mergedRange": str(merged_range)
+                            }
+                            break
+                    else:
+                        cell_info = {"row": row, "col": col, "value": "", "type": cell_type, "formula": None, "isMerged": True}
+
+                else:
+                    # Regular cell
+                    formula = cell.value if isinstance(cell.value, str) and cell.value.startswith('=') else None
+                    cell_info = {
+                        "row": row,
+                        "col": col,
+                        "value": str(cell.value) if cell.value is not None else "",
+                        "type": cell_type,
+                        "formula": formula,
+                        "isMerged": False
+                    }
+
                 row_data.append(cell_info)
             cells_data.append(row_data)
         return cells_data
