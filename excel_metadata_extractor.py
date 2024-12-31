@@ -37,17 +37,13 @@ class ExcelMetadataExtractor:
                 wb_tree = ET.parse(wb_xml)
                 wb_root = wb_tree.getroot()
 
-                # シートIDとシート名の対応を取得
+                # シート名の対応を取得
                 sheets = {}
                 for sheet in wb_root.findall('.//sp:sheet', self.ns):
-                    sheet_id = sheet.get('sheetId')
                     r_id = sheet.get(f'{{{self.ns["r"]}}}id')
                     sheet_name = sheet.get('name', '')
-                    sheets[r_id] = {
-                        'id': sheet_id,
-                        'name': sheet_name
-                    }
-                    print(f"Found sheet: {sheet_name} (ID: {sheet_id}, rId: {r_id})")
+                    sheets[r_id] = sheet_name
+                    print(f"Found sheet: {sheet_name} (rId: {r_id})")
 
             print("\nProcessing workbook relationships...")
             # xl/_rels/workbook.xml.relsから関係性を解析
@@ -59,10 +55,9 @@ class ExcelMetadataExtractor:
                 for rel in rels_root.findall('.//pr:Relationship', self.ns):
                     r_id = rel.get('Id')
                     if r_id in sheets:
-                        sheet_info = sheets[r_id]
-                        sheet_id = sheet_info['id']
+                        sheet_name = sheets[r_id]
                         target = rel.get('Target')
-                        print(f"\nProcessing relationship - Sheet: {sheet_info['name']} (ID: {sheet_id}, rId: {r_id})")
+                        print(f"\nProcessing relationship - Sheet: {sheet_name} (rId: {r_id})")
                         print(f"Original target path: {target}")
 
                         # パスの正規化
@@ -95,8 +90,8 @@ class ExcelMetadataExtractor:
 
                                         if 'drawing' in rel_target.lower():
                                             drawing_path = rel_target.replace('..', 'xl')
-                                            sheet_drawing_map[sheet_id] = drawing_path
-                                            print(f"Found drawing for sheet {sheet_id}: {drawing_path}")
+                                            sheet_drawing_map[sheet_name] = drawing_path
+                                            print(f"Found drawing for sheet '{sheet_name}': {drawing_path}")
                             else:
                                 print(f"Rels file not found: {sheet_rels_filename}")
 
@@ -459,9 +454,9 @@ class ExcelMetadataExtractor:
                     sheet_drawing_map = self.get_sheet_drawing_relations(excel_zip)
 
                     # 現在のシートに対応するdrawingを探す
-                    sheet_index = str(self.workbook.sheetnames.index(sheet.title) + 1)
-                    if sheet_index in sheet_drawing_map:
-                        drawing_path = sheet_drawing_map[sheet_index]
+                    sheet_name = sheet.title
+                    if sheet_name in sheet_drawing_map:
+                        drawing_path = sheet_drawing_map[sheet_name]
                         drawings = self.extract_drawing_info(sheet, excel_zip, drawing_path)
 
                         for drawing in drawings:
