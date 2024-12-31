@@ -69,7 +69,7 @@ class ExcelMetadataExtractor:
 
                         # シートごとの_rels/sheet*.xml.relsを確認
                         sheet_base = os.path.splitext(target)[0]
-                        sheet_rels_path = f"{sheet_base}.rels"
+                        sheet_rels_path = f"{sheet_base}.xml.rels"
                         sheet_rels_filename = f'xl/worksheets/_rels/{os.path.basename(sheet_rels_path)}'
 
                         print(f"Looking for rels file: {sheet_rels_filename}")
