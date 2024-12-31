@@ -2,6 +2,7 @@ import streamlit as st
 import json
 from excel_metadata_extractor import ExcelMetadataExtractor
 import pandas as pd
+import traceback
 
 def display_json_tree(data, key_prefix=""):
     """Display JSON data in an expandable tree format"""
@@ -24,37 +25,41 @@ def display_json_tree(data, key_prefix=""):
 
 def display_region_info(region):
     """Display region information in a structured format"""
-    st.write(f"📍 Region Type: {region['regionType']}")
-    st.write(f"📏 Range: {region['range']}")
+    try:
+        st.write(f"📍 Region Type: {region['regionType']}")
+        st.write(f"📏 Range: {region['range']}")
 
-    if region['regionType'] == 'table':
-        with st.expander("📊 Table Structure"):
-            st.json(region['headerStructure'])
-            if 'notes' in region and region['notes']:
-                st.write("📝 Notes:", region['notes'])
+        if region['regionType'] == 'table':
+            with st.expander("📊 Table Structure"):
+                st.json(region['headerStructure'])
+                if 'notes' in region and region['notes']:
+                    st.write("📝 Notes:", region['notes'])
 
-    elif region['regionType'] == 'text':
-        with st.expander("📝 Text Content"):
-            st.write("Content:", region['content'])
-            st.write("Classification:", region['classification'])
-            st.write("Importance:", region['importance'])
-            if 'summary' in region:
-                st.write("Summary:", region['summary'])
-            if 'keyPoints' in region and region['keyPoints']:
-                st.write("Key Points:")
-                for point in region['keyPoints']:
-                    st.write(f"• {point}")
+        elif region['regionType'] == 'text':
+            with st.expander("📝 Text Content"):
+                st.write("Content:", region['content'])
+                st.write("Classification:", region.get('classification', 'Unknown'))
+                st.write("Importance:", region.get('importance', 'Unknown'))
+                if 'summary' in region:
+                    st.write("Summary:", region['summary'])
+                if 'keyPoints' in region and region['keyPoints']:
+                    st.write("Key Points:")
+                    for point in region['keyPoints']:
+                        st.write(f"• {point}")
 
-    elif region['regionType'] == 'chart':
-        with st.expander("📈 Chart Information"):
-            st.write("Chart Type:", region['chartType'])
-            st.write("Purpose:", region['purpose'])
-            if 'dataRelations' in region and region['dataRelations']:
-                st.write("Data Relations:")
-                for relation in region['dataRelations']:
-                    st.write(f"• {relation}")
-            if 'suggestedUsage' in region:
-                st.write("Suggested Usage:", region['suggestedUsage'])
+        elif region['regionType'] == 'chart':
+            with st.expander("📈 Chart Information"):
+                st.write("Chart Type:", region.get('chartType', 'Unknown'))
+                st.write("Purpose:", region.get('purpose', 'Unknown'))
+                if 'dataRelations' in region and region['dataRelations']:
+                    st.write("Data Relations:")
+                    for relation in region['dataRelations']:
+                        st.write(f"• {relation}")
+                if 'suggestedUsage' in region:
+                    st.write("Suggested Usage:", region['suggestedUsage'])
+    except Exception as e:
+        st.error(f"Error displaying region info: {str(e)}\nRegion data: {json.dumps(region, indent=2)}")
+        st.error(f"Stack trace:\n{traceback.format_exc()}")
 
 def main():
     st.set_page_config(
@@ -102,8 +107,12 @@ def main():
                     if "regions" in sheet and sheet["regions"]:
                         st.subheader("📍 Detected Regions")
                         for region in sheet["regions"]:
-                            with st.expander(f"{region['regionType'].title()} Region - {region['range']}"):
-                                display_region_info(region)
+                            try:
+                                with st.expander(f"{region['regionType'].title()} Region - {region['range']}"):
+                                    display_region_info(region)
+                            except Exception as e:
+                                st.error(f"Error processing region: {str(e)}\nRegion data: {json.dumps(region, indent=2)}")
+                                st.error(f"Stack trace:\n{traceback.format_exc()}")
 
                     if sheet.get("mergedCells"):
                         with st.expander("🔀 Merged Cells"):
@@ -124,6 +133,7 @@ def main():
 
         except Exception as e:
             st.error(f"Error processing file: {str(e)}")
+            st.error(f"Detailed error:\n{traceback.format_exc()}")
             st.error("Please make sure you've uploaded a valid Excel file.")
 
 if __name__ == "__main__":
