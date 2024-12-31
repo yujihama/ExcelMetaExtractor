@@ -1,0 +1,97 @@
+結論からいうと、**まだ問題が残っています。**  
+「workbook.xml.rels」や「sheetX.xml.rels」内の `<Relationship>` 要素が見つからない可能性が高いです。
+
+---
+
+## なぜか？
+### 1. `workbook.xml.rels` 内の `<Relationship>` の名前空間は “package” の方
+Excel のリレーションシップ定義（`.rels` ファイル）は、通常以下の名前空間を使っています。
+
+```xml
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+    <Relationship Id="rId1" Type="..." Target="..." ... />
+    ...
+</Relationships>
+```
+
+- **デフォルト名前空間**: `xmlns="http://schemas.openxmlformats.org/package/2006/relationships"`
+
+一方、今回のコードでは  
+```python
+for rel in rels_root.findall('.//Relationship', {'': self.ns['r']}):
+    ...
+```
+のように**“`http://schemas.openxmlformats.org/officeDocument/2006/relationships`”** をデフォルトと見なして検索しています。  
+しかし実際には `.rels` ファイルの `<Relationship>` タグは、**`http://schemas.openxmlformats.org/package/2006/relationships`** に属しています。
+
+そのため、`rels_root.findall('.//Relationship', {'': self.ns['r']})` は **1件もヒットしない** → `sheet_drawing_map` が構築されない → 図形の抽出に失敗する、という流れになります。
+
+---
+
+## どう直す？
+### 1. “package” 名前空間を追加
+
+```python
+self.ns = {
+    'a':   'http://schemas.openxmlformats.org/drawingml/2006/main',
+    'xdr': 'http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing',
+    'r':   'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
+    'c':   'http://schemas.openxmlformats.org/drawingml/2006/chart',
+    'sp':  'http://schemas.openxmlformats.org/spreadsheetml/2006/main',
+    # ★ package用の名前空間を追加
+    'pr':  'http://schemas.openxmlformats.org/package/2006/relationships'
+}
+```
+
+### 2. `<Relationship>` 要素を検索するときに `pr:` を使う
+
+```python
+with excel_zip.open('xl/_rels/workbook.xml.rels') as rels_xml:
+    rels_tree = ET.parse(rels_xml)
+    rels_root = rels_tree.getroot()
+
+    # シートとターゲットの対応を取得
+    for rel in rels_root.findall('.//pr:Relationship', self.ns):
+        r_id = rel.get('Id')
+        ...
+```
+
+- ここで `'.//pr:Relationship'` とすることで、`pr`（package relationships）の名前空間の `<Relationship>` タグを取得できるようになります。
+
+#### 同様にシート側の `sheetX.xml.rels` も同じ修正
+```python
+sheet_rels_tree = ET.parse(sheet_rels)
+sheet_rels_root = sheet_rels_tree.getroot()
+
+for sheet_rel in sheet_rels_root.findall('.//pr:Relationship', self.ns):
+    if 'drawing' in sheet_rel.get('Target', ''):
+        ...
+```
+
+こうすることで、`drawing.xml` への参照が正しく見つかり、`sheet_drawing_map` がちゃんと作られます。
+
+---
+
+## 補足：Excel の名前空間まとめ
+
+- **workbook.xml / sheetX.xml / styles.xml など**  
+  - デフォルト：`http://schemas.openxmlformats.org/spreadsheetml/2006/main`
+  - `r`（Relationships 用）: `http://schemas.openxmlformats.org/officeDocument/2006/relationships`
+
+- **.rels ファイル (workbook.xml.rels / sheetX.xml.rels / drawing.xml.rels など)**  
+  - デフォルト：`http://schemas.openxmlformats.org/package/2006/relationships`
+  
+- **drawing.xml (スプレッドシート図形)**  
+  - `xdr`: `http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing`
+  - `a`  : `http://schemas.openxmlformats.org/drawingml/2006/main`
+  - `r`  : `http://schemas.openxmlformats.org/officeDocument/2006/relationships` (画像埋め込み参照などで使われる)
+
+これらがしっかりマッピングされていないと、XML の要素・属性が正しく見つからないことが多いです。
+
+---
+
+## まとめ
+
+- 現状は `.rels` ファイルで `<Relationship>` が見つからず、描画リレーションがマップできていない可能性が高い。  
+- **`http://schemas.openxmlformats.org/package/2006/relationships`** を新たに `pr` などで登録し、検索を `'.//pr:Relationship'` に変更する必要がある。  
+- これを修正すれば、シートと drawing.xml のパスを正しく紐づけられるようになり、図形も抽出できるようになるはずです。
