@@ -29,38 +29,50 @@ def display_region_info(region):
         st.write(f"📍 Region Type: {region['regionType']}")
         st.write(f"📏 Range: {region['range']}")
 
+        # Display sample cells if available
+        if 'sampleCells' in region and region['sampleCells']:
+            st.markdown("##### 📊 Sample Data")
+            # Convert sample cells to a pandas DataFrame for better display
+            sample_data = []
+            for row in region['sampleCells']:
+                row_data = {f"Column {cell['col']}": cell['value'] for cell in row}
+                sample_data.append(row_data)
+            if sample_data:
+                st.dataframe(pd.DataFrame(sample_data))
+
+        # Display merged cells if available
+        if 'mergedCells' in region and region['mergedCells']:
+            st.markdown("##### 🔀 Merged Cells")
+            for merged in region['mergedCells']:
+                st.text(f"Range: {merged['range']} - Value: {merged.get('value', 'N/A')}")
+
+        # Add additional region-specific information based on type
         if region['regionType'] == 'table':
-            st.markdown("##### 📊 Table Structure")
-            st.json(region['headerStructure'])
-            if 'notes' in region and region['notes']:
-                st.write("📝 Notes:", region['notes'])
+            st.markdown("##### 📊 Table Information")
+            if 'headerStructure' in region:
+                st.json(region['headerStructure'])
+            if 'purpose' in region:
+                st.write("📝 Purpose:", region['purpose'])
 
         elif region['regionType'] == 'text':
-            st.markdown("##### 📝 Text Content")
-            st.write("Content:", region['content'])
-            st.write("Classification:", region.get('classification', 'Unknown'))
-            st.write("Importance:", region.get('importance', 'Unknown'))
-            if 'summary' in region:
-                st.write("Summary:", region['summary'])
-            if 'keyPoints' in region and region['keyPoints']:
-                st.write("Key Points:")
-                for point in region['keyPoints']:
-                    st.write(f"• {point}")
+            st.markdown("##### 📝 Text Information")
+            if 'content' in region:
+                st.text_area("Content", region['content'], height=100)
+            if 'classification' in region:
+                st.write("Classification:", region['classification'])
+            if 'importance' in region:
+                st.write("Importance:", region['importance'])
 
         elif region['regionType'] == 'chart':
             st.markdown("##### 📈 Chart Information")
-            st.write("Chart Type:", region.get('chartType', 'Unknown'))
-            st.write("Purpose:", region.get('purpose', 'Unknown'))
-            if 'dataRelations' in region and region['dataRelations']:
-                st.write("Data Relations:")
-                for relation in region['dataRelations']:
-                    st.write(f"• {relation}")
-            if 'suggestedUsage' in region:
-                st.write("Suggested Usage:", region['suggestedUsage'])
+            if 'chartType' in region:
+                st.write("Chart Type:", region['chartType'])
+            if 'purpose' in region:
+                st.write("Purpose:", region['purpose'])
 
     except Exception as e:
-        st.error(f"Error displaying region info: {str(e)}\nRegion data: {json.dumps(region, indent=2)}")
-        st.error(f"Stack trace:\n{traceback.format_exc()}")
+        st.error(f"Error displaying region info: {str(e)}")
+        st.error(f"Region data structure: {json.dumps(region, indent=2)}")
 
 def main():
     st.set_page_config(
