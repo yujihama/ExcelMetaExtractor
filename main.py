@@ -26,6 +26,7 @@ def display_json_tree(data, key_prefix=""):
 def display_region_info(region):
     """Display region information in a structured format"""
     try:
+        st.markdown("### Region Information")
         st.write(f"Region Type: {region['regionType']}")
         st.write(f"Range: {region['range']}")
 
@@ -77,9 +78,9 @@ def display_region_info(region):
                     st.text(f"Chart Reference: {region['chart_ref']}")
 
         elif region['regionType'] == 'table':
-            st.markdown("Table Information")
+            st.markdown("### Table Information")
             if 'headerStructure' in region:
-                st.markdown("Header Structure:")
+                st.markdown("#### Header Structure")
                 cols = st.columns(3)
                 with cols[0]:
                     header_type = region['headerStructure'].get('headerType', 'Unknown')
