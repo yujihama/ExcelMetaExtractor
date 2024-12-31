@@ -30,33 +30,34 @@ def display_region_info(region):
         st.write(f"📏 Range: {region['range']}")
 
         if region['regionType'] == 'table':
-            with st.expander("📊 Table Structure"):
-                st.json(region['headerStructure'])
-                if 'notes' in region and region['notes']:
-                    st.write("📝 Notes:", region['notes'])
+            st.markdown("##### 📊 Table Structure")
+            st.json(region['headerStructure'])
+            if 'notes' in region and region['notes']:
+                st.write("📝 Notes:", region['notes'])
 
         elif region['regionType'] == 'text':
-            with st.expander("📝 Text Content"):
-                st.write("Content:", region['content'])
-                st.write("Classification:", region.get('classification', 'Unknown'))
-                st.write("Importance:", region.get('importance', 'Unknown'))
-                if 'summary' in region:
-                    st.write("Summary:", region['summary'])
-                if 'keyPoints' in region and region['keyPoints']:
-                    st.write("Key Points:")
-                    for point in region['keyPoints']:
-                        st.write(f"• {point}")
+            st.markdown("##### 📝 Text Content")
+            st.write("Content:", region['content'])
+            st.write("Classification:", region.get('classification', 'Unknown'))
+            st.write("Importance:", region.get('importance', 'Unknown'))
+            if 'summary' in region:
+                st.write("Summary:", region['summary'])
+            if 'keyPoints' in region and region['keyPoints']:
+                st.write("Key Points:")
+                for point in region['keyPoints']:
+                    st.write(f"• {point}")
 
         elif region['regionType'] == 'chart':
-            with st.expander("📈 Chart Information"):
-                st.write("Chart Type:", region.get('chartType', 'Unknown'))
-                st.write("Purpose:", region.get('purpose', 'Unknown'))
-                if 'dataRelations' in region and region['dataRelations']:
-                    st.write("Data Relations:")
-                    for relation in region['dataRelations']:
-                        st.write(f"• {relation}")
-                if 'suggestedUsage' in region:
-                    st.write("Suggested Usage:", region['suggestedUsage'])
+            st.markdown("##### 📈 Chart Information")
+            st.write("Chart Type:", region.get('chartType', 'Unknown'))
+            st.write("Purpose:", region.get('purpose', 'Unknown'))
+            if 'dataRelations' in region and region['dataRelations']:
+                st.write("Data Relations:")
+                for relation in region['dataRelations']:
+                    st.write(f"• {relation}")
+            if 'suggestedUsage' in region:
+                st.write("Suggested Usage:", region['suggestedUsage'])
+
     except Exception as e:
         st.error(f"Error displaying region info: {str(e)}\nRegion data: {json.dumps(region, indent=2)}")
         st.error(f"Stack trace:\n{traceback.format_exc()}")
