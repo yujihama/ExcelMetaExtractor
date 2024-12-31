@@ -29,25 +29,33 @@ def display_region_info(region):
         st.write(f"📍 Region Type: {region['regionType']}")
         st.write(f"📏 Range: {region['range']}")
 
-        # Display sample cells if available
-        if 'sampleCells' in region and region['sampleCells']:
-            st.markdown("##### 📊 Sample Data")
-            # Convert sample cells to a pandas DataFrame for better display
-            sample_data = []
-            for row in region['sampleCells']:
-                row_data = {f"Column {cell['col']}": cell['value'] for cell in row}
-                sample_data.append(row_data)
-            if sample_data:
-                st.dataframe(pd.DataFrame(sample_data))
+        if region['regionType'] in ['image', 'shape']:
+            st.markdown("##### 🖼️ Image/Shape Information")
 
-        # Display merged cells if available
-        if 'mergedCells' in region and region['mergedCells']:
-            st.markdown("##### 🔀 Merged Cells")
-            for merged in region['mergedCells']:
-                st.text(f"Range: {merged['range']} - Value: {merged.get('value', 'N/A')}")
+            # 基本情報の表示
+            cols = st.columns(2)
+            with cols[0]:
+                st.metric("Type", region['type'].title())
+                if 'name' in region:
+                    st.text(f"Name: {region['name']}")
+            with cols[1]:
+                if 'description' in region and region['description']:
+                    st.text(f"Description: {region['description']}")
 
-        # Add additional region-specific information based on type
-        if region['regionType'] == 'table':
+            # 座標情報の表示
+            if 'coordinates' in region:
+                st.markdown("**Position:**")
+                coords = region['coordinates']
+                st.text(f"From: Column {coords['from']['col']}, Row {coords['from']['row']}")
+                st.text(f"To: Column {coords['to']['col']}, Row {coords['to']['row']}")
+
+            # 画像特有の情報
+            if region['regionType'] == 'image' and 'image_format' in region:
+                st.markdown("**Image Details:**")
+                st.text(f"Format: {region['image_format']}")
+
+        # 既存の表示ロジックを維持
+        elif region['regionType'] == 'table':
             st.markdown("##### 📊 Table Information")
 
             # Display header structure information
@@ -94,6 +102,24 @@ def display_region_info(region):
                 st.write("Chart Type:", region['chartType'])
             if 'purpose' in region:
                 st.write("Purpose:", region['purpose'])
+
+        # Display sample cells if available
+        if 'sampleCells' in region and region['sampleCells']:
+            st.markdown("##### 📊 Sample Data")
+            # Convert sample cells to a pandas DataFrame for better display
+            sample_data = []
+            for row in region['sampleCells']:
+                row_data = {f"Column {cell['col']}": cell['value'] for cell in row}
+                sample_data.append(row_data)
+            if sample_data:
+                st.dataframe(pd.DataFrame(sample_data))
+
+        # Display merged cells if available
+        if 'mergedCells' in region and region['mergedCells']:
+            st.markdown("##### 🔀 Merged Cells")
+            for merged in region['mergedCells']:
+                st.text(f"Range: {merged['range']} - Value: {merged.get('value', 'N/A')}")
+
 
     except Exception as e:
         st.error(f"Error displaying region info: {str(e)}")
