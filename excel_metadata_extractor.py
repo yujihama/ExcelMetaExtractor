@@ -136,11 +136,11 @@ class ExcelMetadataExtractor:
                     "row": row,
                     "col": col,
                     "value": str(cell.value) if cell.value is not None else "",
-                    "formula": cell.formula if cell.formula else None
+                    "formula": cell.internal_value if isinstance(cell.internal_value, str) and cell.internal_value.startswith('=') else None
                 })
 
         # Analyze table structure using LLM
-        analysis = json.loads(self.openai_helper.analyze_table_structure(json.dumps(cells_data)))
+        analysis = self.openai_helper.analyze_table_structure(json.dumps(cells_data))
 
         if not analysis.get("isTable", False):
             return None
