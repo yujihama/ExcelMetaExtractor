@@ -1,0 +1,126 @@
+結論からいうと、**まだ問題が残っています。**  
+最も大きな問題の一つは、「**workbook.xml の `sheetId`**」 と 「**OpenPyXL でのシート順（インデックス）**」 を混同している点です。
+
+---
+
+# なにが問題なのか？
+
+## 1. `sheetId` と OpenPyXL のインデックスは同じとは限らない
+```python
+# シートのインデックスを文字列にしている
+sheet_index = str(self.workbook.sheetnames.index(sheet.title) + 1)
+```
+ここで作っている `sheet_index` は、**「Excel上の左から1番目のシートは '1'、2番目は '2' …」という単純な並び順** です。  
+しかし、`workbook.xml` の `<sheet>` タグには `sheetId="5"` のように **連番とは限らない** 値が入っている場合がしばしばあります。  
+- たとえば、ユーザがシートを作成・削除・並べ替えを繰り返すと、`sheetId="1"` → `"5"` → `"7"` のような飛び番号になっていることは珍しくありません
+
+一方、現在のコードでは以下のようにして `sheetId` を取得しています。
+
+```python
+for sheet in wb_root.findall('.//sp:sheet', self.ns):
+    sheet_id = sheet.get('sheetId')   # 例：'5'
+    r_id = sheet.get(f'{{{self.ns["r"]}}}id')
+    ...
+    sheets[r_id] = {
+        'id': sheet_id,       # これが '5' (飛び番号の可能性あり)
+        'name': sheet_name
+    }
+```
+
+そして、`.rels` 側の `<Relationship Id="rIdxxx" …>` と紐づけて 
+```python
+sheet_drawing_map[sheet_id] = drawing_path
+```
+という形にしているため、**`sheet_drawing_map` のキーは「実際の sheetId」** になっています。
+
+しかし、後段で図形を抽出するときには
+```python
+sheet_index = str(self.workbook.sheetnames.index(sheet.title) + 1)
+if sheet_index in sheet_drawing_map:
+    drawing_path = sheet_drawing_map[sheet_index]
+    ...
+```
+という処理をしています。この `sheet_index` は「左から1番目なら '1'、2番目なら '2'」にすぎず、**`sheetId='5'` とは一致しません。**
+
+結果として、**`if sheet_index in sheet_drawing_map:` が常に False** となり、対応する drawing.xml が存在していても取得できない → 図形抽出ができない状況になります。
+
+---
+
+# どう直せばいいのか？
+
+## 1. シート名ベース、またはシートの Python オブジェクトベースで紐付けする
+
+### A. シート名で紐付けする
+以下のようにすれば、**OpenPyXL で取得したシート名** でマッピングできるので、 `sheetId` の不整合問題を回避できます。
+
+1. `workbook.xml` 内の `<sheet>` タグから取り出した **`sheet_name`** をキーにする  
+2. `.rels` で見つけた drawing のパスは、`sheet_drawing_map[sheet_name] = drawing_path` にして保存する  
+3. 後段で図形抽出を呼び出すときには、OpenPyXL の `sheet.title` を見て `sheet_drawing_map[sheet.title]` を取り出す
+
+#### 例：修正イメージ
+
+```python
+# (1) workbook.xml の <sheet> 要素を読み込み
+for sheet in wb_root.findall('.//sp:sheet', self.ns):
+    r_id = sheet.get(f'{{{self.ns["r"]}}}id')
+    sheet_name = sheet.get('name', '')
+
+    # シート名ベースの辞書へ保存
+    # rId -> シート名
+    sheets[r_id] = sheet_name
+
+# (2) workbook.xml.rels の解析
+for rel in rels_root.findall('.//pr:Relationship', self.ns):
+    r_id = rel.get('Id')
+    if r_id in sheets:
+        sheet_name = sheets[r_id]
+        # ここで sheet_name がわかるので…
+
+        # sheet_rels.xml で drawing_path を探し当てたら…
+        sheet_drawing_map[sheet_name] = drawing_path
+```
+
+```python
+# (3) シートを処理するときはシート名で探す
+sheet_name = sheet.title
+if sheet_name in sheet_drawing_map:
+    drawing_path = sheet_drawing_map[sheet_name]
+    ...
+```
+
+これで、**Excel 内部の飛び番号 `sheetId`** を意識せずに済むようになります。
+
+---
+
+### B. シート ID を逆引きし、OpenPyXL 上のシートと紐付ける
+もしどうしても `sheetId` をキーにしたいなら、OpenPyXL のシートオブジェクトから **実際の `sheetId`** を取り出す必要があります。  
+OpenPyXL でも `.sheet_properties.tabId` や `.sheet_properties.sheetId` のように内部IDを持っているはずですが、これが必ずしも `sheetId` と一致するとは限りません。ワークブック読み込み時に再割り当てされるケースもあります。
+
+実際には **シート名で紐付ける** のが最も確実です。
+
+---
+
+## 2. 他に気を付けるべきこと
+
+### - `replace('..', 'xl')` のパス修正
+`.rels` ファイルには `"Target="../drawings/drawing1.xml"` のように相対パスが書かれていますが、必ずしも `'..'` の直後が `'/'` であるとは限らず、他の相対指定が混ざる場合も理論上はありえます。  
+とはいえ、Excel の場合、通常は `../drawings/drawingX.xml` くらいしか出てこないので、  
+```python
+drawing_path = rel_target.replace('..', 'xl')
+```
+でほぼ対処可能です。  
+厳密にやるなら、`os.path.normpath()` と組み合わせるなどもう少し注意が必要です。
+
+### - `.rels` ファイルの `<Relationship>` の `Type` で “drawing” かどうか判定する
+現状では `if 'drawing' in rel_target.lower():` で判定していますが、  
+OpenXML 的には `<Relationship Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" …>`  
+などが正しいマッチング方法です。  
+- ただし現状でも多くの場合はうまく動くと思われます。
+
+---
+
+# まとめ
+
+- **まだ「 sheetId とシートインデックスの不整合」問題が残っている** ため、現状のままだと多くのファイルで図形が抽出できません。  
+- **シート名ベース** で `sheet_drawing_map` を構築し、`if sheet.title in sheet_drawing_map:` という形に修正するのがいちばん簡単かつ確実です。  
+- これを直せば、ほぼ「狙いどおりに drawing.xml を見つけて図形を抽出する」実装になるでしょう。
