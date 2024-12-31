@@ -54,9 +54,11 @@ def display_region_info(region):
             st.markdown("**Header Structure:**")
             cols = st.columns(3)
             with cols[0]:
-                st.metric("Header Type", region.get('headerStructure', {}).get('headerType', 'Unknown'))
+                header_type = region.get('headerStructure', {}).get('headerType', 'Unknown')
+                st.metric("Header Type", header_type.title())  # 'single' -> 'Single'
             with cols[1]:
-                st.metric("Header Rows", region.get('headerStructure', {}).get('headerRowsCount', 0))
+                header_range = region.get('headerStructure', {}).get('headerRange', 'N/A')
+                st.metric("Header Rows", header_range)
             with cols[2]:
                 has_merged = region.get('headerStructure', {}).get('mergedCells', False)
                 st.metric("Has Merged Cells", "Yes" if has_merged else "No")

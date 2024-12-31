@@ -178,7 +178,11 @@ class ExcelMetadataExtractor:
                     # データサイズを削減したJSONを作成
                     region_data = {
                         "cells": cells_data[:10],  # 最初の10行のみ
-                        "mergedCells": merged_cells[:5]  # 最初の5個の結合セルのみ
+                        "mergedCells": merged_cells[:5],  # 最初の5個の結合セルのみ
+                        "startRow": row,
+                        "startCol": col,
+                        "endRow": max_row,
+                        "endCol": max_col
                     }
 
                     # Analyze region type and structure
@@ -188,13 +192,31 @@ class ExcelMetadataExtractor:
 
                     region_type = region_analysis.get("regionType", "unknown")
 
-                    # Create region metadata based on type
+                    # Create basic region metadata
                     region_metadata = {
                         "regionType": region_type,
                         "range": f"{get_column_letter(col)}{row}:{get_column_letter(max_col)}{max_row}",
                         "sampleCells": cells_data[:3],  # サンプルとして最初の3行のみを保持
                         "mergedCells": merged_cells
                     }
+
+                    # Add table-specific metadata if it's a table region
+                    if region_type == "table":
+                        # Analyze header structure
+                        header_structure = self.detect_header_structure(cells_data)
+                        if isinstance(header_structure, str):
+                            header_structure = json.loads(header_structure)
+
+                        # Add header row range information
+                        header_rows_count = header_structure.get("headerRowsCount", 1)
+                        region_metadata.update({
+                            "headerStructure": {
+                                "headerType": header_structure.get("headerType", "single"),
+                                "headerRowsCount": header_rows_count,
+                                "headerRange": f"{row}-{row + header_rows_count - 1}",  # ヘッダー行の範囲を追加
+                                "mergedCells": bool(merged_cells)
+                            }
+                        })
 
                     regions.append(region_metadata)
 
