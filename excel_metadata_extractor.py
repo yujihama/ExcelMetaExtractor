@@ -319,20 +319,20 @@ class ExcelMetadataExtractor:
                     to_col_adj = to_col + (to_col_off / EMU_PER_CELL)
                     to_row_adj = to_row + (to_row_off / EMU_PER_CELL)
 
-                    # 境界をまたぐ場合は次のセルに
-                    if from_col_off > 0: from_col_adj = math.ceil(from_col_adj)
-                    if from_row_off > 0: from_row_adj = math.ceil(from_row_adj)
-                    if to_col_off > 0: to_col_adj = math.ceil(to_col_adj)
-                    if to_row_off > 0: to_row_adj = math.ceil(to_row_adj)
+                    # 小数点以下を切り捨てて座標を計算
+                    from_col_final = math.floor(from_col_adj)
+                    from_row_final = math.floor(from_row_adj)
+                    to_col_final = math.floor(to_col_adj)
+                    to_row_final = math.floor(to_row_adj)
 
                     shape_info["coordinates"] = {
                         "from": {
-                            "col": int(from_col_adj) + 1,
-                            "row": int(from_row_adj) + 1
+                            "col": from_col_final + 1,
+                            "row": from_row_final + 1
                         },
                         "to": {
-                            "col": int(to_col_adj) + 1,
-                            "row": int(to_row_adj) + 1
+                            "col": to_col_final + 1,
+                            "row": to_row_final + 1
                         }
                     }
 
