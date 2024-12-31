@@ -29,7 +29,24 @@ def display_region_info(region):
         st.write(f"📍 Region Type: {region['regionType']}")
         st.write(f"📏 Range: {region['range']}")
 
-        if region['regionType'] in ['image', 'shape', 'smartart', 'chart']:
+        # Shape specific information
+        if region['regionType'] == 'shape':
+            st.markdown("##### 🔷 Shape Information")
+            cols = st.columns(2)
+            with cols[0]:
+                st.metric("Shape Type", region.get('shape_type', 'Unknown').title())
+                if region.get('name'):
+                    st.text(f"Name: {region['name']}")
+            with cols[1]:
+                if region.get('description'):
+                    st.text(f"Description: {region['description']}")
+
+            # Display shape text content if available
+            if region.get('text_content'):
+                st.markdown("**Text Content:**")
+                st.text_area("", region['text_content'], height=100, disabled=True)
+
+        elif region['regionType'] in ['image', 'smartart', 'chart']:
             st.markdown("##### 🖼️ Drawing Information")
 
             # 基本情報の表示
