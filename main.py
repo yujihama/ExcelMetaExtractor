@@ -29,17 +29,17 @@ def display_region_info(region):
         st.write(f"📍 Region Type: {region['regionType']}")
         st.write(f"📏 Range: {region['range']}")
 
-        if region['regionType'] in ['image', 'shape']:
-            st.markdown("##### 🖼️ Image/Shape Information")
+        if region['regionType'] in ['image', 'shape', 'smartart', 'chart']:
+            st.markdown("##### 🖼️ Drawing Information")
 
             # 基本情報の表示
             cols = st.columns(2)
             with cols[0]:
-                st.metric("Type", region.get('type', '').title())
-                if 'name' in region and region['name']:
+                st.metric("Type", region['type'].title())
+                if region.get('name'):
                     st.text(f"Name: {region['name']}")
             with cols[1]:
-                if 'description' in region and region['description']:
+                if region.get('description'):
                     st.text(f"Description: {region['description']}")
 
             # 座標情報の表示
@@ -49,13 +49,19 @@ def display_region_info(region):
                 st.text(f"From: Column {coords['from']['col']}, Row {coords['from']['row']}")
                 st.text(f"To: Column {coords['to']['col']}, Row {coords['to']['row']}")
 
-            # 画像特有の情報
-            if region['regionType'] == 'image':
-                if 'image_format' in region:
-                    st.markdown("**Image Details:**")
-                    st.text(f"Format: {region['image_format']}")
+            # 図形タイプ別の特殊情報
+            if region['type'] == 'image':
                 if 'image_ref' in region:
+                    st.markdown("**Image Details:**")
                     st.text(f"Reference: {region['image_ref']}")
+            elif region['type'] == 'smartart':
+                if 'diagram_type' in region:
+                    st.markdown("**SmartArt Details:**")
+                    st.text(f"Diagram Type: {region['diagram_type']}")
+            elif region['type'] == 'chart':
+                if 'chart_ref' in region:
+                    st.markdown("**Chart Details:**")
+                    st.text(f"Chart Reference: {region['chart_ref']}")
 
         elif region['regionType'] == 'table':
             st.markdown("##### 📊 Table Information")
