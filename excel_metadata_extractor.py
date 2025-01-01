@@ -864,6 +864,10 @@ class ExcelMetadataExtractor:
             )
             raise
 
+    def extract_region_cells(self, sheet, start_row: int, start_col: int,
+                           max_row: int, max_col: int) -> List[List[Dict[str, Any]]]:
+        """Extract cell information from a region with limits"""
+        cells_data = []
         # 範囲が大きすぎる場合は制限する
         actual_max_row = min(
             max_row, start_row + self.MAX_CELLS_PER_ANALYSIS //
