@@ -650,10 +650,11 @@ class ExcelMetadataExtractor:
                         if header_structure.get("headerRows"):
                             header_rows = header_structure["headerRows"]
                             if header_rows:
-                                min_header_row = min(header_rows)
-                                max_header_row = max(header_rows)
+                                min_header_row = min(header_rows) - 1
+                                max_header_row = max(header_rows) - 1
                                 # ヘッダーのタイプに応じて範囲を計算
-                                if header_structure.get("headerType") == "single":
+                                if header_structure.get(
+                                        "headerType") == "single":
                                     # 単一ヘッダーの場合は同じ行を指定
                                     header_range = f"{min_header_row + 1}"
                                 else:
@@ -856,15 +857,16 @@ class ExcelMetadataExtractor:
         try:
             # 最初の4行のみを分析対象とする
             sample_data = cells_data[:4]
-            
-            analysis = self.openai_helper.analyze_table_structure(json.dumps(sample_data))
+
+            analysis = self.openai_helper.analyze_table_structure(
+                json.dumps(sample_data))
             if isinstance(analysis, str):
                 analysis = json.loads(analysis)
 
             header_rows = []
             if analysis.get("headerRows"):
                 header_rows = analysis["headerRows"]
-            
+
             return {
                 "headerType": analysis.get("headerType", "none"),
                 "headerRowsCount": len(header_rows),
