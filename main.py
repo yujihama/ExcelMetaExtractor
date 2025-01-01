@@ -4,6 +4,7 @@ from excel_metadata_extractor import ExcelMetadataExtractor
 import pandas as pd
 import traceback
 
+
 def display_json_tree(data, key_prefix=""):
     """Display JSON data in an expandable tree format"""
     if isinstance(data, dict):
@@ -23,6 +24,7 @@ def display_json_tree(data, key_prefix=""):
             else:
                 st.text(f"- {item}")
 
+
 def display_region_info(region):
     """Display region information in a structured format"""
     try:
@@ -32,11 +34,12 @@ def display_region_info(region):
 
         # Shape specific information
         if region['regionType'] == 'shape':
-            st.markdown("Shape Information")
+            st.markdown("### Shape Information")
             cols = st.columns(2)
             with cols[0]:
                 if 'shape_type' in region and region['shape_type']:
-                    st.metric("Shape Type", region.get('shape_type', 'Unknown').title())
+                    st.metric("Shape Type",
+                              region.get('shape_type', 'Unknown').title())
                 if region.get('name'):
                     st.text(f"Name: {region['name']}")
             with cols[1]:
@@ -44,7 +47,7 @@ def display_region_info(region):
                     st.text(f"Description: {region['description']}")
 
             if 'text_content' in region:
-                st.markdown("Text Content")
+                st.markdown("### Text Content")
                 st.text(region['text_content'])
 
         elif region['regionType'] in ['image', 'smartart', 'chart']:
@@ -61,8 +64,12 @@ def display_region_info(region):
             if 'coordinates' in region:
                 st.markdown("Position:")
                 coords = region['coordinates']
-                st.text(f"From: Column {coords['from']['col']}, Row {coords['from']['row']}")
-                st.text(f"To: Column {coords['to']['col']}, Row {coords['to']['row']}")
+                st.text(
+                    f"From: Column {coords['from']['col']}, Row {coords['from']['row']}"
+                )
+                st.text(
+                    f"To: Column {coords['to']['col']}, Row {coords['to']['row']}"
+                )
 
             if region['type'] == 'image':
                 if 'image_ref' in region:
@@ -83,14 +90,18 @@ def display_region_info(region):
                 st.markdown("#### Header Structure")
                 cols = st.columns(3)
                 with cols[0]:
-                    header_type = region['headerStructure'].get('headerType', 'Unknown')
+                    header_type = region['headerStructure'].get(
+                        'headerType', 'Unknown')
                     st.metric("Header Type", header_type.title())
                 with cols[1]:
-                    header_range = region['headerStructure'].get('headerRange', 'N/A')
+                    header_range = region['headerStructure'].get(
+                        'headerRange', 'N/A')
                     st.metric("Header Range", header_range)
                 with cols[2]:
-                    has_merged = region['headerStructure'].get('mergedCells', False)
-                    st.metric("Has Merged Cells", "Yes" if has_merged else "No")
+                    has_merged = region['headerStructure'].get(
+                        'mergedCells', False)
+                    st.metric("Has Merged Cells",
+                              "Yes" if has_merged else "No")
 
         elif region['regionType'] == 'text':
             st.markdown("Text Information")
@@ -105,19 +116,20 @@ def display_region_info(region):
         if 'mergedCells' in region and region['mergedCells']:
             st.markdown("Merged Cells")
             for merged in region['mergedCells']:
-                st.text(f"Range: {merged['range']} - Value: {merged.get('value', 'N/A')}")
+                st.text(
+                    f"Range: {merged['range']} - Value: {merged.get('value', 'N/A')}"
+                )
 
     except Exception as e:
         st.error(f"Error displaying region info: {str(e)}")
         st.error(f"Region data: {json.dumps(region, indent=2)}")
         st.error(f"Stack trace:\n{traceback.format_exc()}")
 
+
 def main():
-    st.set_page_config(
-        page_title="Excel Metadata Extractor",
-        page_icon="📊",
-        layout="wide"
-    )
+    st.set_page_config(page_title="Excel Metadata Extractor",
+                       page_icon="📊",
+                       layout="wide")
 
     st.title("📊 Excel Metadata Extractor")
     st.markdown("""
@@ -128,7 +140,8 @@ def main():
     - AI-powered analysis of content and structure
     """)
 
-    uploaded_file = st.file_uploader("Choose an Excel file", type=['xlsx', 'xlsm'])
+    uploaded_file = st.file_uploader("Choose an Excel file",
+                                     type=['xlsx', 'xlsm'])
 
     if uploaded_file is not None:
         try:
@@ -154,7 +167,8 @@ def main():
                 with cols[1]:
                     st.metric("Columns", sheet["columnCount"])
                 with cols[2]:
-                    st.metric("Merged Cells", len(sheet.get("mergedCells", [])))
+                    st.metric("Merged Cells", len(sheet.get("mergedCells",
+                                                            [])))
 
                 # Merged Cells (at same level as other sections)
                 if sheet.get("mergedCells"):
@@ -166,10 +180,15 @@ def main():
                     st.markdown("##### 📍 Detected Regions")
                     for region in sheet["regions"]:
                         try:
-                            with st.expander(f"{region['regionType'].title()} Region - {region['range']}"):
+                            with st.expander(
+                                    f"{region['regionType'].title()} Region - {region['range']}"
+                            ):
                                 display_region_info(region)
+
                         except Exception as e:
-                            st.error(f"Error processing region: {str(e)}\nRegion data: {json.dumps(region, indent=2)}")
+                            st.error(
+                                f"Error processing region: {str(e)}\nRegion data: {json.dumps(region, indent=2)}"
+                            )
                             st.error(f"Stack trace:\n{traceback.format_exc()}")
 
                 st.markdown("---")  # Add separator between sheets
@@ -180,17 +199,16 @@ def main():
 
             # Download button for JSON
             json_str = json.dumps(metadata, indent=2)
-            st.download_button(
-                label="Download JSON",
-                data=json_str,
-                file_name=f"{uploaded_file.name}_metadata.json",
-                mime="application/json"
-            )
+            st.download_button(label="Download JSON",
+                               data=json_str,
+                               file_name=f"{uploaded_file.name}_metadata.json",
+                               mime="application/json")
 
         except Exception as e:
             st.error(f"Error processing file: {str(e)}")
             st.error(f"Detailed error:\n{traceback.format_exc()}")
             st.error("Please make sure you've uploaded a valid Excel file.")
+
 
 if __name__ == "__main__":
     main()
