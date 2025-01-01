@@ -524,7 +524,7 @@ class ExcelMetadataExtractor:
         """Enhanced region detection including drawings and overlapping regions"""
         regions = []
         drawing_regions = []  # 描画オブジェクト由来の領域
-        cell_regions = []     # セル由来の領域
+        cell_regions = []  # セル由来の領域
         processed_cells = set()
 
         try:
@@ -605,7 +605,8 @@ class ExcelMetadataExtractor:
 
                     # 不要な区切り文字のみの場合はスキップ
                     cell_value = sheet.cell(row=row, column=col).value
-                    if isinstance(cell_value, str) and len(cell_value.strip()) == 1 and cell_value.strip() in '-_=':
+                    if isinstance(cell_value, str) and len(cell_value.strip(
+                    )) == 1 and cell_value.strip() in '-_=':
                         continue
 
                     # Extract cells data with limits
@@ -645,7 +646,7 @@ class ExcelMetadataExtractor:
                     if region_type == "table":
                         # Analyze header structure
                         header_structure = self.detect_header_structure(
-                            cells_data)
+                            cells_data, merged_cells)
                         if isinstance(header_structure, str):
                             header_structure = json.loads(header_structure)
 
@@ -656,7 +657,8 @@ class ExcelMetadataExtractor:
                                 min_header_row = min(header_rows)
                                 max_header_row = max(header_rows)
                                 # ヘッダーのタイプに応じて範囲を計算
-                                if header_structure.get("headerType") == "single":
+                                if header_structure.get(
+                                        "headerType") == "single":
                                     # 単一ヘッダーの場合は同じ行を指定
                                     header_range = f"{min_header_row + 1}"
                                 else:
@@ -679,9 +681,7 @@ class ExcelMetadataExtractor:
                         }
 
                     cell_regions.append(region_metadata)
-                    print(
-                        f"Added cell region: {region_metadata['range']}"
-                    )
+                    print(f"Added cell region: {region_metadata['range']}")
 
                     # 領域数も制限する
                     if len(regions) >= 10:  # 最大10領域まで
@@ -694,7 +694,9 @@ class ExcelMetadataExtractor:
             regions.extend(drawing_regions)
             regions.extend(cell_regions)
 
-            print(f"\nTotal regions detected: {len(regions)} (Drawings: {len(drawing_regions)}, Cells: {len(cell_regions)})")
+            print(
+                f"\nTotal regions detected: {len(regions)} (Drawings: {len(drawing_regions)}, Cells: {len(cell_regions)})"
+            )
             return regions
         except Exception as e:
             print(
@@ -751,10 +753,13 @@ class ExcelMetadataExtractor:
 
         # 下方向のスキャン
         empty_row_count = 0
-        for row in range(start_row, min(sheet.max_row + 1, start_row + 1000)):  # 1000行を上限に
+        for row in range(start_row, min(sheet.max_row + 1,
+                                        start_row + 1000)):  # 1000行を上限に
             # 現在の行が空かどうかチェック
             row_empty = True
-            for col in range(start_col, min(start_col + 20, sheet.max_column + 1)):  # 20列をサンプルに
+            for col in range(start_col,
+                             min(start_col + 20,
+                                 sheet.max_column + 1)):  # 20列をサンプルに
                 if sheet.cell(row=row, column=col).value is not None:
                     row_empty = False
                     break
@@ -769,10 +774,12 @@ class ExcelMetadataExtractor:
 
         # 右方向のスキャン
         empty_col_count = 0
-        for col in range(start_col, min(sheet.max_column + 1, start_col + 50)):  # 50列を上限に
+        for col in range(start_col, min(sheet.max_column + 1,
+                                        start_col + 50)):  # 50列を上限に
             # 現在の列が空かどうかチェック
             col_empty = True
-            for row in range(start_row, min(max_row + 1, start_row + 20)):  # 20行をサンプルに
+            for row in range(start_row, min(max_row + 1,
+                                            start_row + 20)):  # 20行をサンプルに
                 if sheet.cell(row=row, column=col).value is not None:
                     col_empty = False
                     break
@@ -882,24 +889,48 @@ class ExcelMetadataExtractor:
         return cells_data
 
     def detect_header_structure(
-            self, cells_data: List[List[Dict[str, Any]]]) -> Dict[str, Any]:
-        """Analyze the header structure of a table region using LLM"""
+            self, cells_data: List[List[Dict[str, Any]]],
+            merged_cells: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Analyze the header structure of a table region using LLM and merged cell information"""
         try:
-            # 最初の4行のみを分析対象とする
+            # 最初の4行をLLMに解析させる
             sample_data = cells_data[:4]
-            
-            analysis = self.openai_helper.analyze_table_structure(json.dumps(sample_data))
+            analysis = self.openai_helper.analyze_table_structure(
+                json.dumps(sample_data))
             if isinstance(analysis, str):
                 analysis = json.loads(analysis)
 
-            header_rows = []
-            if analysis.get("headerRows"):
-                header_rows = analysis["headerRows"]
-            
+            header_rows = analysis.get("headerRows", [])
+
+            # 結合セル情報を利用してヘッダー行を補完
+            merged_header_rows = set()
+            for merged_cell in merged_cells:
+                # 結合セルの範囲を抽出 (例: "B3:B4")
+                merged_range = merged_cell.get("range", "")
+                if ":" in merged_range:
+                    start_cell, end_cell = merged_range.split(":")
+                    start_row = int("".join(filter(str.isdigit, start_cell)))
+                    end_row = int("".join(filter(str.isdigit, end_cell)))
+                    for row in range(start_row, end_row + 1):
+                        merged_header_rows.add(row)
+
+            # LLMの解析結果と結合セル情報を統合
+            all_header_rows = sorted(
+                set(header_rows).union(merged_header_rows))
+
+            # ヘッダー行の範囲を計算
+            if all_header_rows:
+                min_row = min(all_header_rows)
+                max_row = max(all_header_rows)
+                header_range = f"{min_row}-{max_row}" if min_row != max_row else f"{min_row}"
+            else:
+                header_range = "N/A"
+
             return {
                 "headerType": analysis.get("headerType", "none"),
-                "headerRowsCount": len(header_rows),
-                "headerRows": header_rows
+                "headerRowsCount": len(all_header_rows),
+                "headerRows": all_header_rows,
+                "headerRange": header_range
             }
 
         except Exception as e:
@@ -907,7 +938,8 @@ class ExcelMetadataExtractor:
             return {
                 "headerType": "none",
                 "headerRowsCount": 0,
-                "headerRows": []
+                "headerRows": [],
+                "headerRange": "N/A"
             }
 
     def get_sheet_metadata(self) -> list:
