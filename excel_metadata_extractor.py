@@ -653,7 +653,7 @@ class ExcelMetadataExtractor:
                                 min_header_row = min(header_rows)
                                 max_header_row = max(header_rows)
                                 # rowはベース行なので、header_rowsの値をそのまま使用
-                                header_range = f"{min_header_row + 1}-{max_header_row + 1}"
+                                header_range = f"{min_header_row + 1}-{max_header_row}"
                             else:
                                 header_range = "N/A"
                         else:
