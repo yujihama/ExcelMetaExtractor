@@ -61,6 +61,45 @@ Respond in JSON format:
                 "confidence": 0
             })
 
+    def analyze_table_structure_with_hints(self, data: str) -> Dict[str, Any]:
+        """Analyze table structure using LLM with hints about potential header rows"""
+        try:
+            prompt = f"""与えられたテーブルのサンプルデータとヘッダー行の候補から、以下を分析してください:
+1. テーブルのヘッダー構造（単一/複合）
+2. ヘッダー行の正確な位置
+3. 各列の種類と意味
+
+データ:
+{data}
+
+ヘッダーの判断基準:
+- 一覧表やマスタ等の表題
+- 列見出しの階層構造
+- データ分類や単位の記載
+- 結合セルの使用パターン
+
+JSON形式で返答してください:
+{{
+    "headerType": "single" または "multiple" または "none",
+    "headerRows": [行番号のリスト],
+    "confidence": 0-1の数値
+}}"""
+
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"},
+                max_tokens=1000
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            print(f"Error in analyze_table_structure_with_hints: {str(e)}")
+            return json.dumps({
+                "headerType": "none",
+                "headerRows": [],
+                "confidence": 0
+            })
+
     def analyze_table_structure(self, cells_data: str) -> Dict[str, Any]:
         """Analyze table structure using LLM with size limits"""
         data = json.loads(cells_data)
