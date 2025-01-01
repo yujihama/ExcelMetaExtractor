@@ -54,6 +54,34 @@ class ExcelMetadataExtractor:
             print(f"Error in get_sheet_drawing_relations: {str(e)}")
             return {}
 
+        try:
+            print("\nProcessing workbook relationships...")
+            # xl/_rels/workbook.xml.relsから関係性を解析
+            with excel_zip.open('xl/_rels/workbook.xml.rels') as rels_xml:
+                rels_tree = ET.parse(rels_xml)
+                rels_root = rels_tree.getroot()
+
+                # シートとターゲットの対応を取得
+                for rel in rels_root.findall('.//pr:Relationship', self.ns):
+                    r_id = rel.get('Id')
+                    if r_id in sheets:
+                        sheet_name = sheets[r_id]
+                        target = rel.get('Target')
+                        if target:
+                            # パスの正規化
+                            if target.startswith('/xl/'):
+                                target = target[1:]
+                            elif not target.startswith('xl/'):
+                                target = f'xl/{target}'
+                            
+                            sheet_drawing_map[sheet_name] = target
+
+        except Exception as e:
+            print(f"Error processing relationships: {str(e)}")
+            return {}
+
+        return sheet_drawing_map
+
     def _parse_cell_ref(self, cell_ref: str) -> Tuple[int, int]:
         """Convert Excel cell reference (e.g. 'A1') to (col, row) tuple"""
         from openpyxl.utils import column_index_from_string
