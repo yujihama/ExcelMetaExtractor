@@ -64,14 +64,6 @@ class ExcelMetadataExtractor:
             return (column_index_from_string(col_str), int(row_str))
         return (1, 1)
 
-                # シート名の対応を取得
-                sheets = {}
-                for sheet in wb_root.findall('.//sp:sheet', self.ns):
-                    r_id = sheet.get(f'{{{self.ns["r"]}}}id')
-                    sheet_name = sheet.get('name', '')
-                    sheets[r_id] = sheet_name
-                    print(f"Found sheet: {sheet_name} (rId: {r_id})")
-
             print("\nProcessing workbook relationships...")
             # xl/_rels/workbook.xml.relsから関係性を解析
             with excel_zip.open('xl/_rels/workbook.xml.rels') as rels_xml:
