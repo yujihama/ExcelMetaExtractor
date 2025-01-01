@@ -840,31 +840,6 @@ class ExcelMetadataExtractor:
         return merged_cells_info
 
     def extract_region_cells(self, sheet, start_row: int, start_col: int,
-                             max_row: int,
-                             max_col: int) -> List[List[Dict[str, Any]]]:
-        """Extract cell information from a region with limits"""
-        cells_data = []
-
-    def extract_all_metadata(self) -> Dict[str, Any]:
-        """Extract all metadata with enhanced analysis"""
-        try:
-            file_metadata = self.get_file_metadata()
-            sheets_metadata = self.get_sheet_metadata()
-
-            metadata = {
-                **file_metadata,
-                "worksheets": sheets_metadata,
-                "crossSheetRelationships": []  # Basic implementation
-            }
-
-            return metadata
-        except Exception as e:
-            print(
-                f"Error in extract_all_metadata: {str(e)}\n{traceback.format_exc()}"
-            )
-            raise
-
-    def extract_region_cells(self, sheet, start_row: int, start_col: int,
                            max_row: int, max_col: int) -> List[List[Dict[str, Any]]]:
         """Extract cell information from a region with limits"""
         cells_data = []
