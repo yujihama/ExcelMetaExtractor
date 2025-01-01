@@ -64,8 +64,6 @@ class ExcelMetadataExtractor:
             return (column_index_from_string(col_str), int(row_str))
         return (1, 1)
 
-
-
                 # シート名の対応を取得
                 sheets = {}
                 for sheet in wb_root.findall('.//sp:sheet', self.ns):
@@ -626,13 +624,14 @@ class ExcelMetadataExtractor:
                         if "range" in region:
                             region_range = region["range"]
                             start_cell, end_cell = region_range.split(":")
-                            start_col, start_row = self._parse_cell_ref(start_cell)
+                            start_col, start_row = self._parse_cell_ref(
+                                start_cell)
                             end_col, end_row = self._parse_cell_ref(end_cell)
-                            if (start_col <= col <= end_col and 
-                                start_row <= row <= end_row):
+                            if (start_col <= col <= end_col
+                                    and start_row <= row <= end_row):
                                 is_part_of_existing_region = True
                                 break
-                    
+
                     if is_part_of_existing_region:
                         continue
 
