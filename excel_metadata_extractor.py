@@ -846,35 +846,22 @@ class ExcelMetadataExtractor:
 
     def detect_header_structure(
             self, cells_data: List[List[Dict[str, Any]]]) -> Dict[str, Any]:
-        """Analyze the header structure of a table region"""
+        """Analyze the header structure of a table region using LLM"""
         try:
+            # 最初の4行のみを分析対象とする
+            sample_data = cells_data[:4]
+            
+            analysis = self.openai_helper.analyze_table_structure(json.dumps(sample_data))
+            if isinstance(analysis, str):
+                analysis = json.loads(analysis)
+
             header_rows = []
-            header_type = "none"
-            header_rows_count = 0
-
-            for i, row in enumerate(cells_data[:4]):  # 最初の4行まで分析
-                # 行の特徴を分析
-                cell_types = [cell['type'] for cell in row]
-                cell_values = [str(cell['value']).strip() for cell in row]
-
-                # ヘッダーらしい特徴をチェック
-                is_header_like = (
-                    all(v != "" for v in cell_values) and  # すべてのセルに値がある
-                    all(t in ['text', 'string']
-                        for t in cell_types)  # テキストセルが多い
-                )
-
-                if is_header_like:
-                    header_rows.append(i)
-
-            # ヘッダー行数に基づいてタイプを判定
-            if header_rows:
-                header_rows_count = len(header_rows)
-                header_type = "multiple" if header_rows_count > 1 else "single"
-
+            if analysis.get("headerRows"):
+                header_rows = analysis["headerRows"]
+            
             return {
-                "headerType": header_type,
-                "headerRowsCount": header_rows_count,
+                "headerType": analysis.get("headerType", "none"),
+                "headerRowsCount": len(header_rows),
                 "headerRows": header_rows
             }
 

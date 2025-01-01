@@ -61,20 +61,26 @@ Respond in JSON format with the following structure:
         else:
             sample_data = data
 
-        prompt = f"""Analyze the following Excel cells sample data and determine:
-1. If this is a table structure
-2. The type of headers (single/multiple rows)
-3. The number of header rows
+        prompt = f"""Analyze the following Excel cells sample data and determine the header structure:
+1. Identify if any rows are headers based on their content and format
+2. Determine if it's a single or multiple header structure
+3. List the row indices (0-based) that are headers
+
+Consider these factors:
+- Headers often contain column titles or category names
+- Headers may use different formatting or cell types
+- Headers are typically at the top of the table
+- Headers should have meaningful text content
 
 Sample data (first few rows):
 {json.dumps(sample_data, indent=2)}
 
 Respond in JSON format with the following structure:
 {{
-    "isTable": boolean,
     "headerType": "single" or "multiple" or "none",
-    "headerRowsCount": number,
-    "confidence": number
+    "headerRows": [row_indices],
+    "confidence": number,
+    "reasoning": string
 }}
 """
         try:
