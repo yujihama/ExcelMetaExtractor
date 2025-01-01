@@ -64,14 +64,15 @@ class ExcelMetadataExtractor:
             return (column_index_from_string(col_str), int(row_str))
         return (1, 1)
 
-            print("\nProcessing workbook relationships...")
-            # xl/_rels/workbook.xml.relsから関係性を解析
-            with excel_zip.open('xl/_rels/workbook.xml.rels') as rels_xml:
-                rels_tree = ET.parse(rels_xml)
-                rels_root = rels_tree.getroot()
+            try:
+                print("\nProcessing workbook relationships...")
+                # xl/_rels/workbook.xml.relsから関係性を解析
+                with excel_zip.open('xl/_rels/workbook.xml.rels') as rels_xml:
+                    rels_tree = ET.parse(rels_xml)
+                    rels_root = rels_tree.getroot()
 
-                # シートとターゲットの対応を取得
-                for rel in rels_root.findall('.//pr:Relationship', self.ns):
+                    # シートとターゲットの対応を取得
+                    for rel in rels_root.findall('.//pr:Relationship', self.ns):
                     r_id = rel.get('Id')
                     if r_id in sheets:
                         sheet_name = sheets[r_id]
