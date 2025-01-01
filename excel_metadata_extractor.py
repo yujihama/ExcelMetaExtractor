@@ -603,8 +603,9 @@ class ExcelMetadataExtractor:
                     max_row, max_col = self.find_region_boundaries(
                         sheet, row, col)
 
-                    # Skip if region is too small
-                    if max_row - row < 1 or max_col - col < 1:
+                    # 不要な区切り文字のみの場合はスキップ
+                    cell_value = sheet.cell(row=row, column=col).value
+                    if isinstance(cell_value, str) and len(cell_value.strip()) == 1 and cell_value.strip() in '-_=':
                         continue
 
                     # Extract cells data with limits
@@ -784,9 +785,9 @@ class ExcelMetadataExtractor:
                 empty_col_count = 0
                 max_col = col
 
-        # 少なくとも2x2以上のサイズを確保
-        max_row = max(max_row, start_row + 1)
-        max_col = max(max_col, start_col + 1)
+        # 最小でも元の位置を維持
+        max_row = max(max_row, start_row)
+        max_col = max(max_col, start_col)
 
         return max_row, max_col
 
