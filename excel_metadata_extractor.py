@@ -43,6 +43,18 @@ class ExcelMetadataExtractor:
                 wb_tree = ET.parse(wb_xml)
                 wb_root = wb_tree.getroot()
 
+    def _parse_cell_ref(self, cell_ref: str) -> Tuple[int, int]:
+        """Convert Excel cell reference (e.g. 'A1') to (col, row) tuple"""
+        from openpyxl.utils import column_index_from_string
+        import re
+        match = re.match(r'([A-Z]+)([0-9]+)', cell_ref)
+        if match:
+            col_str, row_str = match.groups()
+            return (column_index_from_string(col_str), int(row_str))
+        return (1, 1)
+
+
+
                 # シート名の対応を取得
                 sheets = {}
                 for sheet in wb_root.findall('.//sp:sheet', self.ns):
@@ -595,6 +607,22 @@ class ExcelMetadataExtractor:
 
                     if cell_coord in processed_cells or sheet.cell(
                             row=row, column=col).value is None:
+                        continue
+
+                    # Check if this cell is part of an already detected region
+                    is_part_of_existing_region = False
+                    for region in regions:
+                        if "range" in region:
+                            region_range = region["range"]
+                            start_cell, end_cell = region_range.split(":")
+                            start_col, start_row = self._parse_cell_ref(start_cell)
+                            end_col, end_row = self._parse_cell_ref(end_cell)
+                            if (start_col <= col <= end_col and 
+                                start_row <= row <= end_row):
+                                is_part_of_existing_region = True
+                                break
+                    
+                    if is_part_of_existing_region:
                         continue
 
                     # Find region boundaries
