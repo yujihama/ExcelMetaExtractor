@@ -50,8 +50,6 @@ class ExcelMetadataExtractor:
                     sheet_name = sheet.get('name', '')
                     sheets[r_id] = sheet_name
                     print(f"Found sheet: {sheet_name} (rId: {r_id})")
-
-                return sheet_drawing_map
         except Exception as e:
             print(f"Error in get_sheet_drawing_relations: {str(e)}")
             return {}
