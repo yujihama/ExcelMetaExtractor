@@ -521,8 +521,10 @@ class ExcelMetadataExtractor:
             return None
 
     def detect_regions(self, sheet) -> List[Dict[str, Any]]:
-        """Enhanced region detection including drawings"""
+        """Enhanced region detection including drawings and overlapping regions"""
         regions = []
+        drawing_regions = []  # 描画オブジェクト由来の領域
+        cell_regions = []     # セル由来の領域
         processed_cells = set()
 
         try:
@@ -571,9 +573,9 @@ class ExcelMetadataExtractor:
                             elif drawing_type == "chart" and "chart_ref" in drawing:
                                 region_info["chart_ref"] = drawing["chart_ref"]
 
-                            regions.append(region_info)
+                            drawing_regions.append(region_info)
                             print(
-                                f"Added {drawing_type} region: {region_info['range']}"
+                                f"Added drawing region: {region_info['range']}"
                             )
 
                             # 図形が占める領域をprocessed_cellsに追加
@@ -675,9 +677,9 @@ class ExcelMetadataExtractor:
                             bool(merged_cells)
                         }
 
-                    regions.append(region_metadata)
+                    cell_regions.append(region_metadata)
                     print(
-                        f"Added {region_type} region: {region_metadata['range']}"
+                        f"Added cell region: {region_metadata['range']}"
                     )
 
                     # 領域数も制限する
@@ -687,7 +689,11 @@ class ExcelMetadataExtractor:
                         )
                         return regions
 
-            print(f"\nTotal regions detected: {len(regions)}")
+            # 描画オブジェクトとセル領域を両方保持（重複を許可）
+            regions.extend(drawing_regions)
+            regions.extend(cell_regions)
+
+            print(f"\nTotal regions detected: {len(regions)} (Drawings: {len(drawing_regions)}, Cells: {len(cell_regions)})")
             return regions
         except Exception as e:
             print(
@@ -736,27 +742,51 @@ class ExcelMetadataExtractor:
 
     def find_region_boundaries(self, sheet, start_row: int,
                                start_col: int) -> Tuple[int, int]:
-        """Find the boundaries of a contiguous region"""
+        """Find the boundaries of a contiguous region with improved detection"""
         max_row = start_row
         max_col = start_col
+        min_empty_rows = 2  # 空白行が2行以上続いたら領域の終わりとみなす
+        min_empty_cols = 2  # 空白列が2列以上続いたら領域の終わりとみなす
 
-        # Scan downward
-        for row in range(start_row, sheet.max_row + 1):
-            if all(
-                    sheet.cell(row=row, column=col).value is None
-                    for col in range(
-                        start_col, min(start_col + 3, sheet.max_column + 1))):
-                break
-            max_row = row
+        # 下方向のスキャン
+        empty_row_count = 0
+        for row in range(start_row, min(sheet.max_row + 1, start_row + 1000)):  # 1000行を上限に
+            # 現在の行が空かどうかチェック
+            row_empty = True
+            for col in range(start_col, min(start_col + 20, sheet.max_column + 1)):  # 20列をサンプルに
+                if sheet.cell(row=row, column=col).value is not None:
+                    row_empty = False
+                    break
 
-        # Scan rightward
-        for col in range(start_col, sheet.max_column + 1):
-            if all(
-                    sheet.cell(row=row, column=col).value is None
-                    for row in range(start_row, min(start_row + 3, max_row +
-                                                    1))):
-                break
-            max_col = col
+            if row_empty:
+                empty_row_count += 1
+                if empty_row_count >= min_empty_rows:
+                    break
+            else:
+                empty_row_count = 0
+                max_row = row
+
+        # 右方向のスキャン
+        empty_col_count = 0
+        for col in range(start_col, min(sheet.max_column + 1, start_col + 50)):  # 50列を上限に
+            # 現在の列が空かどうかチェック
+            col_empty = True
+            for row in range(start_row, min(max_row + 1, start_row + 20)):  # 20行をサンプルに
+                if sheet.cell(row=row, column=col).value is not None:
+                    col_empty = False
+                    break
+
+            if col_empty:
+                empty_col_count += 1
+                if empty_col_count >= min_empty_cols:
+                    break
+            else:
+                empty_col_count = 0
+                max_col = col
+
+        # 少なくとも2x2以上のサイズを確保
+        max_row = max(max_row, start_row + 1)
+        max_col = max(max_col, start_col + 1)
 
         return max_row, max_col
 
