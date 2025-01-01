@@ -43,6 +43,19 @@ class ExcelMetadataExtractor:
                 wb_tree = ET.parse(wb_xml)
                 wb_root = wb_tree.getroot()
 
+                # シート名の対応を取得
+                sheets = {}
+                for sheet in wb_root.findall('.//sp:sheet', self.ns):
+                    r_id = sheet.get(f'{{{self.ns["r"]}}}id')
+                    sheet_name = sheet.get('name', '')
+                    sheets[r_id] = sheet_name
+                    print(f"Found sheet: {sheet_name} (rId: {r_id})")
+
+                return sheet_drawing_map
+        except Exception as e:
+            print(f"Error in get_sheet_drawing_relations: {str(e)}")
+            return {}
+
     def _parse_cell_ref(self, cell_ref: str) -> Tuple[int, int]:
         """Convert Excel cell reference (e.g. 'A1') to (col, row) tuple"""
         from openpyxl.utils import column_index_from_string
