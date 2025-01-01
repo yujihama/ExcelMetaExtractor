@@ -50,49 +50,7 @@ class ExcelMetadataExtractor:
                     sheet_name = sheet.get('name', '')
                     sheets[r_id] = sheet_name
                     print(f"Found sheet: {sheet_name} (rId: {r_id})")
-        except Exception as e:
-            print(f"Error in get_sheet_drawing_relations: {str(e)}")
-            return {}
 
-        try:
-            print("\nProcessing workbook relationships...")
-            # xl/_rels/workbook.xml.relsから関係性を解析
-            with excel_zip.open('xl/_rels/workbook.xml.rels') as rels_xml:
-                rels_tree = ET.parse(rels_xml)
-                rels_root = rels_tree.getroot()
-
-                # シートとターゲットの対応を取得
-                for rel in rels_root.findall('.//pr:Relationship', self.ns):
-                    r_id = rel.get('Id')
-                    if r_id in sheets:
-                        sheet_name = sheets[r_id]
-                        target = rel.get('Target')
-                        if target:
-                            # パスの正規化
-                            if target.startswith('/xl/'):
-                                target = target[1:]
-                            elif not target.startswith('xl/'):
-                                target = f'xl/{target}'
-                            
-                            sheet_drawing_map[sheet_name] = target
-
-        except Exception as e:
-            print(f"Error processing relationships: {str(e)}")
-            return {}
-
-        return sheet_drawing_map
-
-    def _parse_cell_ref(self, cell_ref: str) -> Tuple[int, int]:
-        """Convert Excel cell reference (e.g. 'A1') to (col, row) tuple"""
-        from openpyxl.utils import column_index_from_string
-        import re
-        match = re.match(r'([A-Z]+)([0-9]+)', cell_ref)
-        if match:
-            col_str, row_str = match.groups()
-            return (column_index_from_string(col_str), int(row_str))
-        return (1, 1)
-
-        try:
             print("\nProcessing workbook relationships...")
             # xl/_rels/workbook.xml.relsから関係性を解析
             with excel_zip.open('xl/_rels/workbook.xml.rels') as rels_xml:
@@ -639,23 +597,6 @@ class ExcelMetadataExtractor:
                             row=row, column=col).value is None:
                         continue
 
-                    # Check if this cell is part of an already detected region
-                    is_part_of_existing_region = False
-                    for region in regions:
-                        if "range" in region:
-                            region_range = region["range"]
-                            start_cell, end_cell = region_range.split(":")
-                            start_col, start_row = self._parse_cell_ref(
-                                start_cell)
-                            end_col, end_row = self._parse_cell_ref(end_cell)
-                            if (start_col <= col <= end_col
-                                    and start_row <= row <= end_row):
-                                is_part_of_existing_region = True
-                                break
-
-                    if is_part_of_existing_region:
-                        continue
-
                     # Find region boundaries
                     max_row, max_col = self.find_region_boundaries(
                         sheet, row, col)
@@ -709,11 +650,10 @@ class ExcelMetadataExtractor:
                         if header_structure.get("headerRows"):
                             header_rows = header_structure["headerRows"]
                             if header_rows:
-                                min_header_row = min(header_rows) - 1
-                                max_header_row = max(header_rows) - 1
+                                min_header_row = min(header_rows)
+                                max_header_row = max(header_rows)
                                 # ヘッダーのタイプに応じて範囲を計算
-                                if header_structure.get(
-                                        "headerType") == "single":
+                                if header_structure.get("headerType") == "single":
                                     # 単一ヘッダーの場合は同じ行を指定
                                     header_range = f"{min_header_row + 1}"
                                 else:
@@ -840,7 +780,8 @@ class ExcelMetadataExtractor:
         return merged_cells_info
 
     def extract_region_cells(self, sheet, start_row: int, start_col: int,
-                           max_row: int, max_col: int) -> List[List[Dict[str, Any]]]:
+                             max_row: int,
+                             max_col: int) -> List[List[Dict[str, Any]]]:
         """Extract cell information from a region with limits"""
         cells_data = []
         # 範囲が大きすぎる場合は制限する
@@ -915,16 +856,15 @@ class ExcelMetadataExtractor:
         try:
             # 最初の4行のみを分析対象とする
             sample_data = cells_data[:4]
-
-            analysis = self.openai_helper.analyze_table_structure(
-                json.dumps(sample_data))
+            
+            analysis = self.openai_helper.analyze_table_structure(json.dumps(sample_data))
             if isinstance(analysis, str):
                 analysis = json.loads(analysis)
 
             header_rows = []
             if analysis.get("headerRows"):
                 header_rows = analysis["headerRows"]
-
+            
             return {
                 "headerType": analysis.get("headerType", "none"),
                 "headerRowsCount": len(header_rows),
