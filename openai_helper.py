@@ -1,3 +1,4 @@
+
 import os
 from openai import OpenAI
 from typing import Dict, Any, Union, List
@@ -6,30 +7,37 @@ import json
 class OpenAIHelper:
     def __init__(self):
         self.client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-        # the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
-        # do not change this unless explicitly requested by the user
         self.model = "gpt-4o"
 
     def analyze_region_type(self, region_data: str) -> Dict[str, Any]:
         """Analyze region type using LLM with size limits"""
-        # データサイズを制限
         data = json.loads(region_data)
         sample_data = {
-            "cells": data["cells"][:5],  # 最初の5行のみ
-            "mergedCells": data.get("mergedCells", [])[:3]  # 最初の3個の結合セルのみ
+            "cells": data["cells"][:5],
+            "mergedCells": data.get("mergedCells", [])[:3]
         }
 
         prompt = f"""Analyze the following Excel region sample data and determine:
 1. The type of region (table, text, chart, image)
-2. Any special characteristics or patterns
-3. The purpose or meaning of the content
+2. If it contains a table title or document heading
+3. The purpose or meaning of the content, considering Japanese text patterns
 
 Region sample data (first few rows/cells):
 {json.dumps(sample_data, indent=2)}
 
-Respond in JSON format with the following structure:
+Consider Japanese text patterns like:
+- Table titles (〇〇一覧, △△表, □□リスト)
+- Section headings (大項目, 中項目, 小項目)
+- Data categories (区分, 分類, 種別)
+
+Respond in JSON format:
 {{
     "regionType": "table" or "text" or "chart" or "image",
+    "title": {{
+        "detected": boolean,
+        "content": string or null,
+        "row": number or null
+    }},
     "characteristics": [string],
     "purpose": string,
     "confidence": number
@@ -40,13 +48,14 @@ Respond in JSON format with the following structure:
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},
-                max_tokens=1000  # トークン数を制限
+                max_tokens=1000
             )
             return response.choices[0].message.content
         except Exception as e:
             print(f"Error in analyze_region_type: {str(e)}")
             return json.dumps({
                 "regionType": "unknown",
+                "title": {"detected": False, "content": None, "row": None},
                 "characteristics": [],
                 "purpose": "Error in analysis",
                 "confidence": 0
@@ -54,33 +63,47 @@ Respond in JSON format with the following structure:
 
     def analyze_table_structure(self, cells_data: str) -> Dict[str, Any]:
         """Analyze table structure using LLM with size limits"""
-        # データを制限
         data = json.loads(cells_data)
         if isinstance(data, list):
-            sample_data = data[:5]  # 最初の5行のみ
+            sample_data = data[:5]
         else:
             sample_data = data
 
-        prompt = f"""Analyze the following Excel cells sample data and determine the header structure:
-1. Identify if any rows are headers based on their content and format
-2. Determine if it's a single or multiple header structure
-3. List the row indices (0-based) that are headers
+        prompt = f"""Analyze the following Excel cells sample data and determine:
+1. Title row detection (例: 売上実績表, 商品マスタ一覧)
+2. Header structure (single/multiple header rows)
+3. Column types and their meanings
 
-Consider these factors:
-- Headers often contain column titles or category names
-- Headers may use different formatting or cell types
-- Headers are typically at the top of the table
-- Headers should have meaningful text content
+Consider Japanese text patterns:
+- Title patterns: 〇〇一覧, △△表, □□リスト
+- Header hierarchies: 大分類->中分類->小分類
+- Data categories: 区分, 分類, 種別
+- Units and notes: 単位, 備考
 
-Sample data (first few rows):
+Sample data:
 {json.dumps(sample_data, indent=2)}
 
-Respond in JSON format with the following structure:
+Respond in JSON format:
 {{
-    "headerType": "single" or "multiple" or "none",
-    "headerRows": [row_indices],
-    "confidence": number,
-    "reasoning": string
+    "titleRow": {{
+        "detected": boolean,
+        "content": string or null,
+        "row": number or null
+    }},
+    "headerStructure": {{
+        "type": "single" or "multiple" or "none",
+        "rows": [row_indices],
+        "hierarchy": [string] or null
+    }},
+    "columns": [
+        {{
+            "index": number,
+            "type": "category" or "numeric" or "date" or "text",
+            "content": string,
+            "purpose": string
+        }}
+    ],
+    "confidence": number
 }}
 """
         try:
@@ -94,27 +117,26 @@ Respond in JSON format with the following structure:
         except Exception as e:
             print(f"Error in analyze_table_structure: {str(e)}")
             return json.dumps({
-                "isTable": False,
-                "headerType": "none",
-                "headerRowsCount": 0,
+                "titleRow": {"detected": False, "content": None, "row": None},
+                "headerStructure": {"type": "none", "rows": [], "hierarchy": None},
+                "columns": [],
                 "confidence": 0
             })
 
     def analyze_text_block(self, text_content: str) -> Dict[str, Any]:
         """Analyze text block content using LLM with size limits"""
-        # データサイズを制限
-        sample_text = text_content[:1000] #最初の1000文字のみ
+        sample_text = text_content[:1000]
 
-        prompt = f"""Analyze the following text content sample from an Excel sheet and determine:
-1. The type of content (meeting notes, comments, descriptions, etc.)
-2. Its importance level
-3. A concise summary
-4. Key points or takeaways
+        prompt = f"""Analyze the following text content from an Excel sheet:
+1. Type of content (議事録, コメント, 説明文など)
+2. Importance level
+3. Key points or takeaways
+4. Consider Japanese text patterns and business terms
 
 Text sample:
 {sample_text}
 
-Respond in JSON format with the following structure:
+Respond in JSON format:
 {{
     "contentType": string,
     "importance": "high" or "medium" or "low",
@@ -143,19 +165,18 @@ Respond in JSON format with the following structure:
 
     def analyze_chart(self, chart_elements: str) -> Dict[str, Any]:
         """Analyze chart elements using LLM with size limits"""
-        # データサイズを制限
-        sample_elements = chart_elements[:1000] # 最初の1000文字のみ
+        sample_elements = chart_elements[:1000]
 
-        prompt = f"""Analyze the following chart elements sample from Excel and determine:
-1. The type of visualization
-2. Its purpose or what it's trying to communicate
-3. Related data references
-4. Suggested ways to use or interpret the chart
+        prompt = f"""Analyze the following chart elements from Excel:
+1. Type of visualization
+2. Purpose and key message
+3. Data relationships
+4. Consider Japanese chart titles and labels
 
-Chart elements sample:
+Chart elements:
 {sample_elements}
 
-Respond in JSON format with the following structure:
+Respond in JSON format:
 {{
     "chartType": string,
     "purpose": string,
@@ -184,18 +205,17 @@ Respond in JSON format with the following structure:
 
     def analyze_merged_cells(self, merged_cells_data: str) -> Dict[str, Any]:
         """Analyze merged cells pattern using LLM with size limits"""
-        # データサイズを制限
-        sample_data = merged_cells_data[:1000] # 最初の1000文字のみ
+        sample_data = merged_cells_data[:1000]
 
-        prompt = f"""Analyze the following merged cells data sample and determine:
-1. The pattern or purpose of the cell merging
-2. Any hierarchy or structure it might represent
-3. Potential implications for data organization
+        prompt = f"""Analyze the following merged cells pattern:
+1. Purpose of merging (見出し, グループ化, 整形など)
+2. Structural implications
+3. Consider Japanese organizational patterns
 
-Merged cells data sample:
+Merged cells data:
 {sample_data}
 
-Respond in JSON format with the following structure:
+Respond in JSON format:
 {{
     "pattern": string,
     "purpose": string,
