@@ -891,46 +891,42 @@ class ExcelMetadataExtractor:
     def detect_header_structure(
             self, cells_data: List[List[Dict[str, Any]]],
             merged_cells: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Analyze the header structure of a table region using LLM and merged cell information"""
+        """Analyze the header structure of a table region using LLM with hints about potential header rows"""
         try:
             # 最初の4行をLLMに解析させる
             sample_data = cells_data[:4]
-            analysis = self.openai_helper.analyze_table_structure(
-                json.dumps(sample_data))
+            analysis = self.openai_helper.analyze_table_structure_with_hints(
+                json.dumps({
+                    "cells": sample_data,
+                    "mergedCells": merged_cells[:3]  # 最初の3つの結合セル情報のみ使用
+                }))
+            
             if isinstance(analysis, str):
                 analysis = json.loads(analysis)
 
             header_rows = analysis.get("headerRows", [])
-
-            # 結合セル情報を利用してヘッダー行を補完
-            merged_header_rows = set()
-            for merged_cell in merged_cells:
-                # 結合セルの範囲を抽出 (例: "B3:B4")
-                merged_range = merged_cell.get("range", "")
-                if ":" in merged_range:
-                    start_cell, end_cell = merged_range.split(":")
-                    start_row = int("".join(filter(str.isdigit, start_cell)))
-                    end_row = int("".join(filter(str.isdigit, end_cell)))
-                    for row in range(start_row, end_row + 1):
-                        merged_header_rows.add(row)
-
-            # LLMの解析結果と結合セル情報を統合
-            all_header_rows = sorted(
-                set(header_rows).union(merged_header_rows))
+            header_type = analysis.get("headerType", "none")
 
             # ヘッダー行の範囲を計算
-            if all_header_rows:
-                min_row = min(all_header_rows)
-                max_row = max(all_header_rows)
-                header_range = f"{min_row}-{max_row}" if min_row != max_row else f"{min_row}"
+            if header_rows:
+                min_row = min(header_rows)
+                max_row = max(header_rows)
+                # ヘッダーのタイプに応じて範囲を計算
+                if header_type == "single":
+                    # 単一ヘッダーの場合は同じ行を指定
+                    header_range = f"{min_row}"
+                else:
+                    # 複合ヘッダーの場合は範囲を指定
+                    header_range = f"{min_row}-{max_row}"
             else:
                 header_range = "N/A"
 
             return {
-                "headerType": analysis.get("headerType", "none"),
-                "headerRowsCount": len(all_header_rows),
-                "headerRows": all_header_rows,
-                "headerRange": header_range
+                "headerType": header_type,
+                "headerRowsCount": len(header_rows),
+                "headerRows": header_rows,
+                "headerRange": header_range,
+                "confidence": analysis.get("confidence", 0)
             }
 
         except Exception as e:
@@ -939,7 +935,8 @@ class ExcelMetadataExtractor:
                 "headerType": "none",
                 "headerRowsCount": 0,
                 "headerRows": [],
-                "headerRange": "N/A"
+                "headerRange": "N/A",
+                "confidence": 0
             }
 
     def get_sheet_metadata(self) -> list:
