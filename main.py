@@ -3,6 +3,7 @@ import json
 from excel_metadata_extractor import ExcelMetadataExtractor
 import pandas as pd
 import traceback
+from openpyxl.utils import get_column_letter
 
 
 def display_json_tree(data, key_prefix=""):
@@ -102,6 +103,14 @@ def display_region_info(region):
                         'mergedCells', False)
                     st.metric("Has Merged Cells",
                               "Yes" if has_merged else "No")
+                
+                # Display header columns
+                if 'sampleCells' in region and len(region['sampleCells']) > 0:
+                    st.markdown("#### Header Columns")
+                    header_row = region['sampleCells'][0]
+                    for cell in header_row:
+                        if cell['value']:
+                            st.text(f"Column {get_column_letter(cell['col'])}: {cell['value']}")
 
         elif region['regionType'] == 'text':
             st.markdown("Text Information")
