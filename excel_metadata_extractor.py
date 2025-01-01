@@ -652,8 +652,13 @@ class ExcelMetadataExtractor:
                             if header_rows:
                                 min_header_row = min(header_rows)
                                 max_header_row = max(header_rows)
-                                # rowはベース行なので、header_rowsの値をそのまま使用
-                                header_range = f"{min_header_row + 1}-{max_header_row}"
+                                # ヘッダーのタイプに応じて範囲を計算
+                                if header_structure.get("headerType") == "single":
+                                    # 単一ヘッダーの場合は同じ行を指定
+                                    header_range = f"{min_header_row + 1}"
+                                else:
+                                    # 複合ヘッダーの場合は範囲を指定
+                                    header_range = f"{min_header_row + 1}-{max_header_row + 1}"
                             else:
                                 header_range = "N/A"
                         else:
