@@ -697,9 +697,20 @@ class ExcelMetadataExtractor:
                         )
                         return regions
 
+            # 各領域にサマリーを追加
+            summaries = {}
+            for idx, region in enumerate(drawing_regions + cell_regions):
+                region_id = f"region{idx + 1}"
+                summary = self.openai_helper.summarize_region(region)
+                summaries[region_id] = summary
+
             # 描画オブジェクトとセル領域を両方保持（重複を許可）
             regions.extend(drawing_regions)
             regions.extend(cell_regions)
+            
+            # サマリー情報を追加
+            if regions:
+                regions.append({"summary": summaries})
 
             print(
                 f"\nTotal regions detected: {len(regions)} (Drawings: {len(drawing_regions)}, Cells: {len(cell_regions)})"
@@ -829,8 +840,13 @@ class ExcelMetadataExtractor:
                              max_col: int) -> List[List[Dict[str, Any]]]:
         """Extract cell information from a region with limits"""
         cells_data = []
-        # 範囲が大きすぎる場合は制限する
-        actual_max_row = min(max_row, 20)
+        # ヘッダー行とデータ4行のみを取得
+        if header_rows:
+            header_max = max(header_rows)
+            data_rows = 4
+            actual_max_row = min(max_row, header_max + data_rows)
+        else:
+            actual_max_row = min(max_row, 5)  # ヘッダーが不明な場合は最初の5行
         actual_max_col = max_col
 
         # actual_max_row = min(

@@ -11,6 +11,35 @@ class OpenAIHelper:
         self.client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
         self.model = "gpt-4o"
 
+    def summarize_region(self, region: Dict[str, Any]) -> str:
+        """Generate a summary for a region based on its content"""
+        try:
+            if region["regionType"] == "table":
+                # テーブル用のサマリー生成
+                cells = region.get("sampleCells", [])
+                header_structure = region.get("headerStructure", {})
+                prompt = f"""以下のExcelテーブル領域の内容を簡潔に要約してください:
+                ヘッダー構造: {json.dumps(header_structure, ensure_ascii=False)}
+                データサンプル: {json.dumps(cells[:2], ensure_ascii=False)}
+                """
+            else:
+                # その他の領域用のサマリー生成
+                prompt = f"""以下のExcel領域の内容を簡潔に要約してください:
+                領域タイプ: {region["regionType"]}
+                範囲: {region["range"]}
+                内容: {json.dumps(region, ensure_ascii=False)[:200]}
+                """
+
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=150
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            print(f"Error generating summary: {str(e)}")
+            return "サマリーの生成に失敗しました"
+
     def analyze_region_type(self, region_data: str) -> Dict[str, Any]:
         """Analyze region type using LLM with size limits"""
         data = json.loads(region_data)
