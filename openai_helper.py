@@ -1,10 +1,12 @@
-
 import os
 from openai import OpenAI
 from typing import Dict, Any, Union, List
 import json
+import streamlit as st
+
 
 class OpenAIHelper:
+
     def __init__(self):
         self.client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
         self.model = "gpt-4o"
@@ -46,16 +48,25 @@ Respond in JSON format:
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
-                messages=[{"role": "user", "content": prompt}],
+                messages=[{
+                    "role": "user",
+                    "content": prompt
+                }],
                 response_format={"type": "json_object"},
-                max_tokens=1000
-            )
+                max_tokens=1000)
+            with st.expander("🔍 Analyzed Region Data"):
+                st.write(prompt)
+                st.write(response.choices[0].message.content)
             return response.choices[0].message.content
         except Exception as e:
             print(f"Error in analyze_region_type: {str(e)}")
             return json.dumps({
                 "regionType": "unknown",
-                "title": {"detected": False, "content": None, "row": None},
+                "title": {
+                    "detected": False,
+                    "content": None,
+                    "row": None
+                },
                 "characteristics": [],
                 "purpose": "Error in analysis",
                 "confidence": 0
@@ -65,8 +76,8 @@ Respond in JSON format:
         """Analyze table structure using LLM with hints about potential header rows"""
         try:
             prompt = f"""与えられたテーブルのサンプルデータとヘッダー行の候補から、以下を分析してください:
-1. テーブルのヘッダー構造（単一/複合）
-2. ヘッダー行の正確な位置
+1. テーブルのヘッダー構造（単一行のヘッダー/複合ヘッダー）
+2. ヘッダー行の正確な位置（複合ヘッダーの場合は複数行回答）
 3. 各列の種類と意味
 
 データ:
@@ -87,10 +98,16 @@ JSON形式で返答してください:
 
             response = self.client.chat.completions.create(
                 model=self.model,
-                messages=[{"role": "user", "content": prompt}],
+                messages=[{
+                    "role": "user",
+                    "content": prompt
+                }],
                 response_format={"type": "json_object"},
-                max_tokens=1000
-            )
+                max_tokens=1000)
+            with st.expander("🔍 Analyzed Table Structure"):
+                st.write(prompt)
+                st.write(response.choices[0].message.content)
+
             return response.choices[0].message.content
         except Exception as e:
             print(f"Error in analyze_table_structure_with_hints: {str(e)}")
@@ -102,11 +119,11 @@ JSON形式で返答してください:
 
     def analyze_table_structure(self, cells_data: str) -> Dict[str, Any]:
         """Analyze table structure using LLM with size limits"""
-        data = json.loads(cells_data)
-        if isinstance(data, list):
-            sample_data = data[:5]
-        else:
-            sample_data = data
+        # data = json.loads(cells_data)
+        # if isinstance(data, list):
+        #     sample_data = data[:5]
+        # else:
+        #     sample_data = data
 
         prompt = f"""Analyze the following Excel cells sample data and determine:
 1. Title row detection (例: 売上実績表, 商品マスタ一覧)
@@ -119,8 +136,8 @@ Consider Japanese text patterns:
 - Data categories: 区分, 分類, 種別
 - Units and notes: 単位, 備考
 
-Sample data:
-{json.dumps(sample_data, indent=2)}
+Sample data(Refer to the rows and columns (row and col) for accurate interpretation of the structure):
+{cells_data}
 
 Respond in JSON format:
 {{
@@ -148,16 +165,29 @@ Respond in JSON format:
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
-                messages=[{"role": "user", "content": prompt}],
+                messages=[{
+                    "role": "user",
+                    "content": prompt
+                }],
                 response_format={"type": "json_object"},
-                max_tokens=1000
-            )
+                max_tokens=1000)
+            with st.expander("🔍 Analyzed Table Structure"):
+                st.write(prompt)
+                st.write(response.choices[0].message.content)
             return response.choices[0].message.content
         except Exception as e:
             print(f"Error in analyze_table_structure: {str(e)}")
             return json.dumps({
-                "titleRow": {"detected": False, "content": None, "row": None},
-                "headerStructure": {"type": "none", "rows": [], "hierarchy": None},
+                "titleRow": {
+                    "detected": False,
+                    "content": None,
+                    "row": None
+                },
+                "headerStructure": {
+                    "type": "none",
+                    "rows": [],
+                    "hierarchy": None
+                },
                 "columns": [],
                 "confidence": 0
             })
@@ -187,10 +217,12 @@ Respond in JSON format:
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
-                messages=[{"role": "user", "content": prompt}],
+                messages=[{
+                    "role": "user",
+                    "content": prompt
+                }],
                 response_format={"type": "json_object"},
-                max_tokens=1000
-            )
+                max_tokens=1000)
             return response.choices[0].message.content
         except Exception as e:
             print(f"Error in analyze_text_block: {str(e)}")
@@ -227,10 +259,12 @@ Respond in JSON format:
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
-                messages=[{"role": "user", "content": prompt}],
+                messages=[{
+                    "role": "user",
+                    "content": prompt
+                }],
                 response_format={"type": "json_object"},
-                max_tokens=1000
-            )
+                max_tokens=1000)
             return response.choices[0].message.content
         except Exception as e:
             print(f"Error in analyze_chart: {str(e)}")
@@ -266,10 +300,12 @@ Respond in JSON format:
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
-                messages=[{"role": "user", "content": prompt}],
+                messages=[{
+                    "role": "user",
+                    "content": prompt
+                }],
                 response_format={"type": "json_object"},
-                max_tokens=1000
-            )
+                max_tokens=1000)
             return response.choices[0].message.content
         except Exception as e:
             print(f"Error in analyze_merged_cells: {str(e)}")

@@ -103,14 +103,27 @@ def display_region_info(region):
                         'mergedCells', False)
                     st.metric("Has Merged Cells",
                               "Yes" if has_merged else "No")
-                
+
                 # Display header columns
-                if 'sampleCells' in region and len(region['sampleCells']) > 0:
+                if 'sampleCells' in region and 'headerStructure' in region and region[
+                        'headerStructure'].get('headerRows'):
                     st.markdown("#### Header Columns")
-                    header_row = region['sampleCells'][0]
-                    for cell in header_row:
-                        if cell['value']:
-                            st.text(f"Column {get_column_letter(cell['col'])}: {cell['value']}")
+                    header_rows_indices = region['headerStructure'][
+                        'headerRows']
+                    for header_row_index in header_rows_indices:
+                        if header_row_index < len(region['sampleCells']):
+                            header_row = region['sampleCells'][
+                                header_row_index]
+                            col_values = []
+                            for cell in header_row:
+                                if cell['value']:
+                                    col_values.append(
+                                        f"Column {get_column_letter(cell['col'])}: {cell['value']}"
+                                    )
+                            if col_values:
+                                st.text(
+                                    f"Row {header_row_index + 1}: {', '.join(col_values)}"
+                                )
 
         elif region['regionType'] == 'text':
             st.markdown("Text Information")

@@ -12,6 +12,7 @@ from openai_helper import OpenAIHelper
 import traceback
 from pathlib import Path
 import tempfile
+import streamlit as st
 
 
 class ExcelMetadataExtractor:
@@ -119,12 +120,12 @@ class ExcelMetadataExtractor:
 
                         except KeyError as e:
                             print(
-                                f"No drawing relations found for sheet {sheet_id}: {str(e)}"
+                                f"No drawing relations found for sheet {sheet_name}: {str(e)}"
                             )
                             continue
                         except Exception as e:
                             print(
-                                f"Error processing sheet relations for sheet {sheet_id}: {str(e)}"
+                                f"Error processing sheet relations for sheet {sheet_name}: {str(e)}"
                             )
                             continue
 
@@ -333,17 +334,12 @@ class ExcelMetadataExtractor:
 
             # 基本情報の構築
             shape_info = {
-                "type":
-                "shape",
-                "name":
-                nv_sp_pr.find('.//xdr:cNvPr', self.ns).get('name', ''),
-                "description":
-                nv_sp_pr.find('.//xdr:cNvPr', self.ns).get('descr', ''),
-                "hidden":
-                nv_sp_pr.find('.//xdr:cNvSpPr',
-                              self.ns).get('hidden', 'false') == 'true',
-                "text_content":
-                text_content
+                "type": "shape",
+                "name": nv_sp_pr.find('.//xdr:cNvPr', self.ns).get('name', ''),
+                "description": nv_sp_pr.find('.//xdr:cNvPr', self.ns).get('descr', ''),
+                "hidden": nv_sp_pr.find('.//xdr:cNvSpPr',
+                                      self.ns).get('hidden', 'false') == 'true',
+                "text_content": text_content
             }
 
             # プリセット形状の情報を追加
@@ -603,6 +599,11 @@ class ExcelMetadataExtractor:
                     max_row, max_col = self.find_region_boundaries(
                         sheet, row, col)
 
+                    with st.expander(f"Region: row:{max_row},col:{max_col}"):
+                        st.write(
+                            f"Region end : {get_column_letter(max_col)}{max_row}"
+                        )
+
                     # 不要な区切り文字のみの場合はスキップ
                     cell_value = sheet.cell(row=row, column=col).value
                     if isinstance(cell_value, str) and len(cell_value.strip(
@@ -659,13 +660,11 @@ class ExcelMetadataExtractor:
                                 # ヘッダーのタイプに応じて範囲を計算
                                 if header_structure.get(
                                         "headerType") == "single":
-                                    # 単一ヘッダーの場合は同じ行を指定
-                                    header_range = f"{min_header_row + 1}"
-                                else:
-                                    # 複合ヘッダーの場合は範囲を指定
-                                    header_range = f"{min_header_row + 1}-{max_header_row + 1}"
+                                # 単一ヘッダーの場合は同じ行を指定
+                                    header_range = f"{min_header_row}"
                             else:
-                                header_range = "N/A"
+                                # 複合ヘッダーの場合は範囲を指定
+                                header_range = f"{min_header_row}-{max_header_row}"
                         else:
                             header_range = "N/A"
 
@@ -700,7 +699,8 @@ class ExcelMetadataExtractor:
             return regions
         except Exception as e:
             print(
-                f"Error in detect_regions: {str(e)}\n{traceback.format_exc()}")
+                f"Error in detect_regions: {str(e)}\n{traceback.format_exc()}"
+            )
             raise
 
     def get_file_metadata(self) -> Dict[str, Any]:
@@ -748,8 +748,8 @@ class ExcelMetadataExtractor:
         """Find the boundaries of a contiguous region with improved detection"""
         max_row = start_row
         max_col = start_col
-        min_empty_rows = 2  # 空白行が2行以上続いたら領域の終わりとみなす
-        min_empty_cols = 2  # 空白列が2列以上続いたら領域の終わりとみなす
+        min_empty_rows = 1  # 空白行が1行以上続いたら領域の終わりとみなす
+        min_empty_cols = 1  # 空白列が1列以上続いたら領域の終わりとみなす
 
         # 下方向のスキャン
         empty_row_count = 0
@@ -779,7 +779,7 @@ class ExcelMetadataExtractor:
             # 現在の列が空かどうかチェック
             col_empty = True
             for row in range(start_row, min(max_row + 1,
-                                            start_row + 20)):  # 20行をサンプルに
+                                            start_row + 50)):  # 20行をサンプルに
                 if sheet.cell(row=row, column=col).value is not None:
                     col_empty = False
                     break
@@ -836,7 +836,7 @@ class ExcelMetadataExtractor:
                 cell = sheet.cell(row=row, column=col)
                 cell_type = self.analyze_cell_type(cell)
 
-                # Handle                # Handle merged cells
+                # Handle merged cells
                 if isinstance(cell, openpyxl.cell.cell.MergedCell):
                     for merged_range in sheet.merged_cells.ranges:
                         if merged_range.min_row <= row <= merged_range.max_row and \
@@ -891,33 +891,89 @@ class ExcelMetadataExtractor:
     def detect_header_structure(
             self, cells_data: List[List[Dict[str, Any]]],
             merged_cells: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Analyze the header structure of a table region using LLM with hints about potential header rows"""
-        try:
-            # 最初の4行をLLMに解析させる
-            sample_data = cells_data[:4]
-            analysis = self.openai_helper.analyze_table_structure_with_hints(
-                json.dumps({
-                    "cells": sample_data,
-                    "mergedCells": merged_cells[:3]  # 最初の3つの結合セル情報のみ使用
-                }))
-            
-            if isinstance(analysis, str):
-                analysis = json.loads(analysis)
+        """Analyze the header structure of a table region using LLM."""
 
-            header_rows = analysis.get("headerRows", [])
-            header_type = analysis.get("headerType", "none")
+        def json_to_markdown_table(json_data, include_row_col=False):
+            """JSONデータをマークダウンテーブルに変換する。
+
+            Args:
+                json_data (dict): JSONデータ（cellsキーを持つ辞書）。
+                include_row_col (bool, optional): rowとcolの情報を含めるかどうか。デフォルトはFalse。
+
+            Returns:
+                str: マークダウンテーブルの文字列。エラー時はNoneを返す。
+            """
+            try:
+                cells = json_data["cells"]
+            except (KeyError, TypeError):
+                return None
+
+            # 最大の列数を取得
+            max_cols = 0
+            for row in cells:
+                max_cols = max(
+                    max_cols,
+                    max(cell["col"] for cell in row) + 1 if row else 0)
+
+            markdown = ""
+
+            if include_row_col:
+                # ヘッダー行（列番号）
+                markdown += "|       |"  # 左上の空白セル
+                for col in range(max_cols):
+                    markdown += f" col {col} |"
+                markdown += "\n"
+
+            for i, row_data in enumerate(cells):
+                if include_row_col:
+                    markdown += f"| row {row_data[0]['row'] if row_data else ''} |"  # 行番号
+                for col in range(max_cols):
+                    cell_value = ""
+                    for cell in row_data:
+                        if cell["col"] == col:
+                            cell_value = cell.get("value", "")
+                            break
+                    markdown += f" {cell_value} |"
+                markdown += "\n"
+
+            if include_row_col:
+                markdown += "\n"  # テーブルと注釈の間に空行を入れる
+                markdown += "※Reference:"
+                for row_data in cells:
+                    for cell in row_data:
+                        markdown += f"* Row {cell['row']}, Col {cell['col']}: {cell.get('value', '')}\n"
+
+            return markdown
+
+        try:
+            markdown_table = json_to_markdown_table({"cells": cells_data[:5]},
+                                                    include_row_col=True)
+            analysis_str = self.openai_helper.analyze_table_structure(
+                markdown_table)
+
+            if isinstance(analysis_str, str):
+                analysis = json.loads(analysis_str)
+            else:
+                return {
+                    "headerType": "none",
+                    "headerRowsCount": 0,
+                    "headerRows": [],
+                    "headerRange": "N/A",
+                    "confidence": 0
+                }
+
+            header_type = analysis.get("headerStructure",
+                                       {}).get("type", "none")
+            header_rows_zero_based = analysis.get("headerStructure",
+                                                  {}).get("rows", [])
+            header_rows = [row + 1
+                           for row in header_rows_zero_based]  # 0始まりを1始まりに変換
 
             # ヘッダー行の範囲を計算
             if header_rows:
                 min_row = min(header_rows)
                 max_row = max(header_rows)
-                # ヘッダーのタイプに応じて範囲を計算
-                if header_type == "single":
-                    # 単一ヘッダーの場合は同じ行を指定
-                    header_range = f"{min_row}"
-                else:
-                    # 複合ヘッダーの場合は範囲を指定
-                    header_range = f"{min_row}-{max_row}"
+                header_range = f"{min_row}-{max_row}"
             else:
                 header_range = "N/A"
 
