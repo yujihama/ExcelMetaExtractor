@@ -702,15 +702,22 @@ class ExcelMetadataExtractor:
             for idx, region in enumerate(drawing_regions + cell_regions):
                 region_id = f"region{idx + 1}"
                 summary = self.openai_helper.summarize_region(region)
+                # サマリーを直接領域のメタデータに追加
+                region["summary"] = summary
                 summaries[region_id] = summary
 
             # 描画オブジェクトとセル領域を両方保持（重複を許可）
             regions.extend(drawing_regions)
             regions.extend(cell_regions)
             
-            # サマリー情報を追加
+            # グローバルサマリー情報を追加
             if regions:
-                regions.append({"summary": summaries})
+                regions.append({
+                    "summary": summaries,
+                    "totalRegions": len(regions),
+                    "drawingRegions": len(drawing_regions),
+                    "cellRegions": len(cell_regions)
+                })
 
             print(
                 f"\nTotal regions detected: {len(regions)} (Drawings: {len(drawing_regions)}, Cells: {len(cell_regions)})"
@@ -840,6 +847,26 @@ class ExcelMetadataExtractor:
                              max_col: int) -> List[List[Dict[str, Any]]]:
         """Extract cell information from a region with limits"""
         cells_data = []
+        # ヘッダー行を分析
+        sample_data = []
+        for row in range(start_row, min(start_row + 5, max_row + 1)):
+            row_data = []
+            for col in range(start_col, min(start_col + 10, max_col + 1)):
+                cell = sheet.cell(row=row, column=col)
+                row_data.append({
+                    "row": row,
+                    "col": col,
+                    "value": str(cell.value) if cell.value is not None else "",
+                    "type": self.analyze_cell_type(cell)
+                })
+            sample_data.append(row_data)
+            
+        # ヘッダー構造を分析
+        header_analysis = self.openai_helper.analyze_table_structure(
+            json.dumps({"cells": sample_data}, ensure_ascii=False), [])
+        header_struct = json.loads(header_analysis)
+        header_rows = header_struct.get("headerStructure", {}).get("rows", [])
+
         # ヘッダー行とデータ4行のみを取得
         if header_rows:
             header_max = max(header_rows)
