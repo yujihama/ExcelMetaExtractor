@@ -104,31 +104,36 @@ def display_region_info(region):
                     st.metric("Has Merged Cells",
                               "Yes" if has_merged else "No")
 
+                #st.write(region)
                 # Display header columns
                 if 'sampleCells' in region and 'headerStructure' in region and region[
                         'headerStructure'].get('headerRows'):
                     st.markdown("#### Header Columns")
                     header_rows_indices = region['headerStructure'][
                         'headerRows']
-                    
+                    start_row = region['headerStructure']['start_row']
+
                     # ヘッダー情報を列ごとに整理
                     header_columns = {}
                     for header_row_index in header_rows_indices:
-                        if header_row_index < len(region['sampleCells']):
-                            header_row = region['sampleCells'][header_row_index]
-                            for cell in header_row:
-                                col_letter = get_column_letter(cell['col'])
-                                if col_letter not in header_columns:
-                                    header_columns[col_letter] = []
-                                if cell['value']:
-                                    header_columns[col_letter].append(cell['value'])
-                    
+                        #if header_row_index - int(start_row) < len(region['sampleCells']):
+                        header_row = region['sampleCells'][
+                            int(header_row_index) - int(start_row)]
+                        for cell in header_row:
+                            col_letter = get_column_letter(cell['col'])
+                            if col_letter not in header_columns:
+                                header_columns[col_letter] = []
+                            if cell['value'] and cell[
+                                    'value'] not in header_columns[col_letter]:
+                                header_columns[col_letter].append(
+                                    cell['value'])
+
                     # ヘッダー情報を表示
                     for col_letter, values in sorted(header_columns.items()):
                         if values:  # 空のヘッダーは表示しない
                             header_text = f"Column {col_letter}: "
                             if len(values) > 1:  # 複合ヘッダーの場合
-                                header_text += " → ".join(values)
+                                header_text += " / ".join(values)
                             else:  # 単一ヘッダーの場合
                                 header_text += values[0]
                             st.markdown(f"- {header_text}")
@@ -141,14 +146,6 @@ def display_region_info(region):
                 st.write("Classification:", region['classification'])
             if 'importance' in region:
                 st.write("Importance:", region['importance'])
-
-        # Display merged cells if available
-        if 'mergedCells' in region and region['mergedCells']:
-            st.markdown("Merged Cells")
-            for merged in region['mergedCells']:
-                st.text(
-                    f"Range: {merged['range']} - Value: {merged.get('value', 'N/A')}"
-                )
 
     except Exception as e:
         st.error(f"Error displaying region info: {str(e)}")

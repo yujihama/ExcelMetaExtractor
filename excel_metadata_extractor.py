@@ -644,7 +644,7 @@ class ExcelMetadataExtractor:
                         "regionType": region_type,
                         "range":
                         f"{get_column_letter(col)}{row}:{get_column_letter(max_col)}{max_row}",
-                        "sampleCells": cells_data[:3],
+                        "sampleCells": cells_data,
                         "mergedCells": merged_cells
                     }
 
@@ -677,10 +677,14 @@ class ExcelMetadataExtractor:
                             header_structure.get("headerType", "none"),
                             "headerRowsCount":
                             header_structure.get("headerRowsCount", 0),
+                            "headerRows":
+                            header_structure.get("headerRows", 0),
                             "headerRange":
                             header_range,
                             "mergedCells":
-                            bool(merged_cells)
+                            bool(merged_cells),
+                            "start_row":
+                            row
                         }
 
                     cell_regions.append(region_metadata)
@@ -826,12 +830,15 @@ class ExcelMetadataExtractor:
         """Extract cell information from a region with limits"""
         cells_data = []
         # 範囲が大きすぎる場合は制限する
-        actual_max_row = min(
-            max_row, start_row + self.MAX_CELLS_PER_ANALYSIS //
-            (max_col - start_col + 1))
-        actual_max_col = min(
-            max_col, start_col + self.MAX_CELLS_PER_ANALYSIS //
-            (max_row - start_row + 1))
+        actual_max_row = min(max_row, 20)
+        actual_max_col = max_col
+
+        # actual_max_row = min(
+        #     max_row, start_row + self.MAX_CELLS_PER_ANALYSIS //
+        #     (max_col - start_col + 1))
+        # actual_max_col = min(
+        #     max_col, start_col + self.MAX_CELLS_PER_ANALYSIS //
+        #     (max_row - start_row + 1))
 
         for row in range(start_row, actual_max_row + 1):
             row_data = []
