@@ -30,11 +30,14 @@ class OpenAIHelper:
                 内容: {json.dumps(region, ensure_ascii=False)[:200]}
                 """
 
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=150
-            )
+            response = self.client.chat.completions.create(model=self.model,
+                                                           messages=[{
+                                                               "role":
+                                                               "user",
+                                                               "content":
+                                                               prompt
+                                                           }],
+                                                           max_tokens=150)
             return response.choices[0].message.content
         except Exception as e:
             print(f"Error generating summary: {str(e)}")
@@ -131,8 +134,7 @@ JSON形式で返答してください:
                     "role": "user",
                     "content": prompt
                 }],
-                response_format={"type": "json_object"},
-                max_tokens=1000)
+                response_format={"type": "json_object"})
             with st.expander("🔍 Analyzed Table Structure"):
                 st.write(prompt)
                 st.write(response.choices[0].message.content)
