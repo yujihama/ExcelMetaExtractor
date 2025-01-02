@@ -207,10 +207,25 @@ def main():
                     st.markdown("##### 📍 Detected Regions")
                     for region in sheet["regions"]:
                         try:
-                            with st.expander(
-                                    f"{region['regionType'].title()} Region - {region['range']}"
-                            ):
-                                display_region_info(region)
+                            # サマリー情報を含むメタデータ領域の場合
+                            if region.get("type") == "metadata":
+                                with st.expander("📊 Region Summary"):
+                                    st.markdown("### Summary Information")
+                                    st.write(f"Total Regions: {region.get('totalRegions', 0)}")
+                                    st.write(f"Drawing Regions: {region.get('drawingRegions', 0)}")
+                                    st.write(f"Cell Regions: {region.get('cellRegions', 0)}")
+                                    if "summary" in region:
+                                        st.write("Summary:", region["summary"])
+                            else:
+                                # 通常の領域の場合
+                                region_title = f"{region['regionType'].title()} Region"
+                                if "range" in region:
+                                    region_title += f" - {region['range']}"
+                                with st.expander(region_title):
+                                    display_region_info(region)
+                                    if "summary" in region:
+                                        st.markdown("### Region Summary")
+                                        st.write(region["summary"])
 
                         except Exception as e:
                             st.error(
