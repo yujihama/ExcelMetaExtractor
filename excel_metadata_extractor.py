@@ -962,10 +962,8 @@ class ExcelMetadataExtractor:
 
             header_type = analysis.get("headerStructure",
                                        {}).get("type", "none")
-            header_rows_zero_based = analysis.get("headerStructure",
-                                                  {}).get("rows", [])
-            header_rows = [row + 1
-                           for row in header_rows_zero_based]  # 0始まりを1始まりに変換
+            header_rows = analysis.get("headerStructure",
+                                       {}).get("rows", [])
 
             # ヘッダー行の範囲を計算
             if header_rows:
