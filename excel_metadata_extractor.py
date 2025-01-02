@@ -334,12 +334,17 @@ class ExcelMetadataExtractor:
 
             # 基本情報の構築
             shape_info = {
-                "type": "shape",
-                "name": nv_sp_pr.find('.//xdr:cNvPr', self.ns).get('name', ''),
-                "description": nv_sp_pr.find('.//xdr:cNvPr', self.ns).get('descr', ''),
-                "hidden": nv_sp_pr.find('.//xdr:cNvSpPr',
-                                      self.ns).get('hidden', 'false') == 'true',
-                "text_content": text_content
+                "type":
+                "shape",
+                "name":
+                nv_sp_pr.find('.//xdr:cNvPr', self.ns).get('name', ''),
+                "description":
+                nv_sp_pr.find('.//xdr:cNvPr', self.ns).get('descr', ''),
+                "hidden":
+                nv_sp_pr.find('.//xdr:cNvSpPr',
+                              self.ns).get('hidden', 'false') == 'true',
+                "text_content":
+                text_content
             }
 
             # プリセット形状の情報を追加
@@ -626,7 +631,7 @@ class ExcelMetadataExtractor:
                     # Analyze region type
                     region_analysis = self.openai_helper.analyze_region_type(
                         json.dumps({
-                            "cells": cells_data[:5],
+                            "cells": cells_data,  #[:5]
                             "mergedCells": merged_cells[:3]
                         }))
                     if isinstance(region_analysis, str):
@@ -659,7 +664,8 @@ class ExcelMetadataExtractor:
                                 min_header_row = min(header_rows)
                                 max_header_row = max(header_rows)
                                 # ヘッダーのタイプに応じて範囲を計算
-                                if header_structure.get("headerType") == "single":
+                                if header_structure.get(
+                                        "headerType") == "single":
                                     # 単一ヘッダーの場合は同じ行を指定
                                     header_range = f"{min_header_row}"
                                 else:
@@ -697,8 +703,7 @@ class ExcelMetadataExtractor:
             return regions
         except Exception as e:
             print(
-                f"Error in detect_regions: {str(e)}\n{traceback.format_exc()}"
-            )
+                f"Error in detect_regions: {str(e)}\n{traceback.format_exc()}")
             raise
 
     def get_file_metadata(self) -> Dict[str, Any]:
@@ -936,7 +941,7 @@ class ExcelMetadataExtractor:
 
             if include_row_col:
                 markdown += "\n"  # テーブルと注釈の間に空行を入れる
-                markdown += "※Reference:"
+                markdown += "※Reference:\n"
                 for row_data in cells:
                     for cell in row_data:
                         markdown += f"* Row {cell['row']}, Col {cell['col']}: {cell.get('value', '')}\n"
@@ -944,10 +949,11 @@ class ExcelMetadataExtractor:
             return markdown
 
         try:
-            markdown_table = json_to_markdown_table({"cells": cells_data[:5]},
-                                                    include_row_col=True)
+            markdown_table = json_to_markdown_table(
+                {"cells": cells_data},  #[:5]
+                include_row_col=True)
             analysis_str = self.openai_helper.analyze_table_structure(
-                markdown_table)
+                markdown_table, merged_cells)
 
             if isinstance(analysis_str, str):
                 analysis = json.loads(analysis_str)
@@ -962,8 +968,7 @@ class ExcelMetadataExtractor:
 
             header_type = analysis.get("headerStructure",
                                        {}).get("type", "none")
-            header_rows = analysis.get("headerStructure",
-                                       {}).get("rows", [])
+            header_rows = analysis.get("headerStructure", {}).get("rows", [])
 
             # ヘッダー行の範囲を計算
             if header_rows:

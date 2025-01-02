@@ -117,7 +117,8 @@ JSON形式で返答してください:
                 "confidence": 0
             })
 
-    def analyze_table_structure(self, cells_data: str) -> Dict[str, Any]:
+    def analyze_table_structure(self, cells_data: str,
+                                merged_cells) -> Dict[str, Any]:
         """Analyze table structure using LLM with size limits"""
         # data = json.loads(cells_data)
         # if isinstance(data, list):
@@ -128,16 +129,20 @@ JSON形式で返答してください:
         prompt = f"""Analyze the following Excel cells sample data and determine:
 1. Title row detection (例: 売上実績表, 商品マスタ一覧)
 2. Header structure (single/multiple header rows)
-3. Column types and their meanings
 
-Consider Japanese text patterns:
-- Title patterns: 〇〇一覧, △△表, □□リスト
-- Header hierarchies: 大分類->中分類->小分類
-- Data categories: 区分, 分類, 種別
-- Units and notes: 単位, 備考
+ヘッダーの判断基準:
+- 一覧表やマスタ等の表題
+- 列見出しの階層構造
+- データ分類や単位の記載
+- 結合セルの使用
+- 合計行や総計、小計の行はヘッダーに含めないこと
 
 Sample data(Refer to the rows and columns (row and col) for accurate interpretation of the structure):
+
 {cells_data}
+
+また、以下のセルは結合されているのでヘッダー検知の参考にしてください。
+{merged_cells}
 
 Respond in JSON format:
 {{
@@ -148,17 +153,9 @@ Respond in JSON format:
     }},
     "headerStructure": {{
         "type": "single" or "multiple" or "none",
-        "rows": [row_indices],
-        "hierarchy": [string] or null
+        "rows": [row_indices]
+        "reason": if you ansewered "multiple", please explain why
     }},
-    "columns": [
-        {{
-            "index": number,
-            "type": "category" or "numeric" or "date" or "text",
-            "content": string,
-            "purpose": string
-        }}
-    ],
     "confidence": number
 }}
 """
@@ -167,10 +164,11 @@ Respond in JSON format:
                 model=self.model,
                 messages=[{
                     "role": "user",
-                    "content": prompt
+                    "content": prompt,
                 }],
                 response_format={"type": "json_object"},
-                max_tokens=1000)
+                temperature=0)
+            #max_tokens=1000)
             with st.expander("🔍 Analyzed Table Structure"):
                 st.write(prompt)
                 st.write(response.choices[0].message.content)
