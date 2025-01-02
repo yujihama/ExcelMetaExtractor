@@ -706,18 +706,30 @@ class ExcelMetadataExtractor:
                 region["summary"] = summary
                 summaries[region_id] = summary
 
+            # すべての領域にregionTypeを確認・設定
+            for region in drawing_regions + cell_regions:
+                if "regionType" not in region:
+                    region["regionType"] = region.get("type", "unknown")
+                
+                # サマリーを生成して追加
+                region["summary"] = self.openai_helper.summarize_region(region)
+
             # 描画オブジェクトとセル領域を両方保持（重複を許可）
             regions.extend(drawing_regions)
             regions.extend(cell_regions)
             
-            # グローバルサマリー情報を追加
+            # メタデータ情報を追加
             if regions:
-                regions.append({
-                    "summary": summaries,
+                metadata = {
+                    "type": "metadata",
+                    "regionType": "metadata",
                     "totalRegions": len(regions),
                     "drawingRegions": len(drawing_regions),
                     "cellRegions": len(cell_regions)
-                })
+                }
+                # メタデータ領域のサマリーを生成
+                metadata["summary"] = f"合計{len(regions)}個の領域（描画オブジェクト: {len(drawing_regions)}、セル領域: {len(cell_regions)}）を検出しました。"
+                regions.append(metadata)
 
             print(
                 f"\nTotal regions detected: {len(regions)} (Drawings: {len(drawing_regions)}, Cells: {len(cell_regions)})"
