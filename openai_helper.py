@@ -19,15 +19,15 @@ class OpenAIHelper:
                 cells = region.get("sampleCells", [])
                 header_structure = region.get("headerStructure", {})
                 prompt = f"""以下のExcelテーブル領域の内容を簡潔に要約してください:
-                ヘッダー構造: {json.dumps(header_structure, ensure_ascii=False)}
-                データサンプル: {json.dumps(cells[:2], ensure_ascii=False)}
+                ヘッダー構造: {json.loads(header_structure, ensure_ascii=False)}
+                データサンプル: {json.loads(cells[:2], ensure_ascii=False)}
                 """
             else:
                 # その他の領域用のサマリー生成
                 prompt = f"""以下のExcel領域の内容を簡潔に要約してください:
                 領域タイプ: {region["regionType"]}
                 範囲: {region["range"]}
-                内容: {json.dumps(region, ensure_ascii=False)[:200]}
+                内容: {json.loads(region, ensure_ascii=False)[:200]}
                 """
 
             response = self.client.chat.completions.create(model=self.model,
@@ -37,7 +37,11 @@ class OpenAIHelper:
                                                                "content":
                                                                prompt
                                                            }],
-                                                           max_tokens=150)
+                                                           max_tokens=1000)
+            with st.expander("LLM_Summary"):
+                st.write(prompt)
+                st.write(response["choices"][0]["message"]["content"])
+
             return response.choices[0].message.content
         except Exception as e:
             print(f"Error generating summary: {str(e)}")
