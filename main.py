@@ -110,20 +110,28 @@ def display_region_info(region):
                     st.markdown("#### Header Columns")
                     header_rows_indices = region['headerStructure'][
                         'headerRows']
+                    
+                    # ヘッダー情報を列ごとに整理
+                    header_columns = {}
                     for header_row_index in header_rows_indices:
                         if header_row_index < len(region['sampleCells']):
-                            header_row = region['sampleCells'][
-                                header_row_index]
-                            col_values = []
+                            header_row = region['sampleCells'][header_row_index]
                             for cell in header_row:
+                                col_letter = get_column_letter(cell['col'])
+                                if col_letter not in header_columns:
+                                    header_columns[col_letter] = []
                                 if cell['value']:
-                                    col_values.append(
-                                        f"Column {get_column_letter(cell['col'])}: {cell['value']}"
-                                    )
-                            if col_values:
-                                st.text(
-                                    f"Row {header_row_index + 1}: {', '.join(col_values)}"
-                                )
+                                    header_columns[col_letter].append(cell['value'])
+                    
+                    # ヘッダー情報を表示
+                    for col_letter, values in sorted(header_columns.items()):
+                        if values:  # 空のヘッダーは表示しない
+                            header_text = f"Column {col_letter}: "
+                            if len(values) > 1:  # 複合ヘッダーの場合
+                                header_text += " → ".join(values)
+                            else:  # 単一ヘッダーの場合
+                                header_text += values[0]
+                            st.markdown(f"- {header_text}")
 
         elif region['regionType'] == 'text':
             st.markdown("Text Information")
