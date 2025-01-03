@@ -46,9 +46,9 @@ class OpenAIHelper:
                                                                prompt
                                                            }],
                                                            max_tokens=1000)
-            with st.expander("LLM_Summary"):
-                st.write(prompt)
-                st.write(response.choices[0].message.content)
+            # with st.expander("LLM_Summary"):
+            #     st.write(prompt)
+            #     st.write(response.choices[0].message.content)
 
             return response.choices[0].message.content
         except Exception as e:
@@ -98,9 +98,9 @@ Respond in JSON format:
                 }],
                 response_format={"type": "json_object"},
                 max_tokens=1000)
-            with st.expander("🔍 Analyzed Region Data"):
-                st.write(prompt)
-                st.write(response.choices[0].message.content)
+            # with st.expander("🔍 Analyzed Region Data"):
+            #     st.write(prompt)
+            #     st.write(response.choices[0].message.content)
             return response.choices[0].message.content
         except Exception as e:
             print(f"Error in analyze_region_type: {str(e)}")
@@ -168,9 +168,9 @@ Respond in JSON format:
                 response_format={"type": "json_object"},
                 temperature=0)
             #max_tokens=1000)
-            with st.expander("🔍 Analyzed Table Structure"):
-                st.write(prompt)
-                st.write(response.choices[0].message.content)
+            # with st.expander("🔍 Analyzed Table Structure"):
+            #     st.write(prompt)
+            #     st.write(response.choices[0].message.content)
             return response.choices[0].message.content
         except Exception as e:
             print(f"Error in analyze_table_structure: {str(e)}")

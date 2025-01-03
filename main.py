@@ -29,13 +29,13 @@ def display_json_tree(data, key_prefix=""):
 def display_region_info(region):
     """Display region information in a structured format"""
     try:
-        st.markdown("### Region Information")
+        st.markdown("#### Region Information")
         st.write(f"Region Type: {region['regionType']}")
         st.write(f"Range: {region['range']}")
 
         # Shape specific information
         if region['regionType'] == 'shape':
-            st.markdown("### Shape Information")
+            st.markdown("#### Shape Information")
             cols = st.columns(2)
             with cols[0]:
                 if 'shape_type' in region and region['shape_type']:
@@ -48,29 +48,29 @@ def display_region_info(region):
                     st.text(f"Description: {region['description']}")
 
             if 'text_content' in region:
-                st.markdown("### Text Content")
+                st.markdown("#### Text Content")
                 st.text(region['text_content'])
 
         elif region['regionType'] in ['image', 'smartart', 'chart']:
-            st.markdown("Drawing Information")
-            cols = st.columns(2)
-            with cols[0]:
-                st.metric("Type", region['type'].title())
-                if region.get('name'):
-                    st.text(f"Name: {region['name']}")
-            with cols[1]:
-                if region.get('description'):
-                    st.text(f"Description: {region['description']}")
+            # st.markdown("Drawing Information")
+            # cols = st.columns(2)
+            # with cols[0]:
+            #     st.text(f"Type:{region['type'].title()}")
+            #     if region.get('name'):
+            #         st.text(f"Name: {region['name']}")
+            # with cols[1]:
+            #     if region.get('description'):
+            #         st.text(f"Description: {region['description']}")
 
-            if 'coordinates' in region:
-                st.markdown("Position:")
-                coords = region['coordinates']
-                st.text(
-                    f"From: Column {coords['from']['col']}, Row {coords['from']['row']}"
-                )
-                st.text(
-                    f"To: Column {coords['to']['col']}, Row {coords['to']['row']}"
-                )
+            # if 'coordinates' in region:
+            #     st.markdown("Position:")
+            #     coords = region['coordinates']
+            #     st.text(
+            #         f"From: Column {coords['from']['col']}, Row {coords['from']['row']}"
+            #     )
+            #     st.text(
+            #         f"To: Column {coords['to']['col']}, Row {coords['to']['row']}"
+            #     )
 
             if region['type'] == 'image':
                 if 'image_ref' in region:
@@ -81,27 +81,27 @@ def display_region_info(region):
                     st.markdown("SmartArt Details:")
                     st.text(f"Diagram Type: {region['diagram_type']}")
             elif region['type'] == 'chart':
-                st.markdown("### Chart Details")
-                st.write(region)
-                if 'chart_ref' in region:
-                    st.text(f"Chart Reference: {region['chart_ref']}")
+                st.markdown("#### Chart Details")
+                
+                # if 'chart_ref' in region:
+                #     st.text(f"Chart Reference: {region['chart_ref']}")
                 if 'chartType' in region:
-                    st.metric("Chart Type", region['chartType'].title())
+                    st.text(f"Chart Type:{region['chartType'].title()}" )
                 if 'title' in region:
                     st.text(f"Title: {region['title']}")
                 if 'series' in region:
-                    st.markdown("#### Data Series")
+                    st.markdown("#### Data Range")
                     for series in region['series']:
-                        st.markdown(
-                            f"- Series: {series.get('name', 'Unnamed')}")
+                        # st.markdown(
+                        #     f"- Series: {series.get('name', 'Unnamed')}")
                         if 'data_range' in series:
-                            st.markdown(
+                            st.text(
                                 f"  Data Range: {series['data_range']}")
                 
                 # Display chart image if available
-                if 'image_path' in region and region['image_path']:
-                    st.markdown("#### Chart Visualization")
-                    st.image(region['image_path'])
+                # if 'image_path' in region and region['image_path']:
+                #     st.markdown("#### Chart Visualization")
+                #     st.image(region['image_path'])
 
         elif region['regionType'] == 'table':
             st.markdown("### Table Information")
@@ -189,93 +189,87 @@ def main():
                                      type=['xlsx', 'xlsm'])
 
     if uploaded_file is not None:
-        try:
-            # Extract metadata
-            extractor = ExcelMetadataExtractor(uploaded_file)
-            metadata = extractor.extract_all_metadata()
-
-            # Display sections
-            st.header("📑 Extracted Metadata")
-
-            # File Properties Section
-            with st.expander("📌 File Properties", expanded=True):
-                st.json(metadata["fileProperties"])
-
-            # Worksheets Section
-            for sheet_idx, sheet in enumerate(metadata["worksheets"]):
-                st.subheader(f"📚 Sheet: {sheet['sheetName']}")
-
-                # Sheet metrics
-                cols = st.columns(3)
-                with cols[0]:
-                    st.metric("Rows", sheet["rowCount"])
-                with cols[1]:
-                    st.metric("Columns", sheet["columnCount"])
-                with cols[2]:
-                    st.metric("Merged Cells", len(sheet.get("mergedCells",
-                                                            [])))
-
-                # Merged Cells (at same level as other sections)
-                if sheet.get("mergedCells"):
-                    st.markdown("##### 🔀 Merged Cells")
-                    st.code("\n".join(sheet["mergedCells"]))
-
-                # Regions (at same level as other sections)
-                if "regions" in sheet and sheet["regions"]:
-                    st.markdown("##### 📍 Detected Regions")
-                    for region in sheet["regions"]:
-                        try:
-                            # サマリー情報を含むメタデータ領域の場合
-                            if region.get("type") == "metadata":
-                                st.markdown("##### 📊 Sheet Summary")
-                                with st.expander("Summary Information"):
-
-                                    st.write(
-                                        f"Total Regions: {region.get('totalRegions', 0)}"
-                                    )
-                                    st.write(
-                                        f"Drawing Regions: {region.get('drawingRegions', 0)}"
-                                    )
-                                    st.write(
-                                        f"Cell Regions: {region.get('cellRegions', 0)}"
-                                    )
-                                    if "summary" in region:
-                                        st.write("Summary:", region["summary"])
-                            else:
-                                # 通常の領域の場合
-                                region_title = f"{region['regionType'].title()} Region"
-                                if "range" in region:
-                                    region_title += f" - {region['range']}"
-                                with st.expander(region_title):
-                                    display_region_info(region)
-                                    if "summary" in region:
-                                        st.markdown("### Region Summary")
-                                        st.write(region["summary"])
-
-                        except Exception as e:
-                            st.error(
-                                f"Error processing region: {str(e)}\nRegion data: {json.dumps(region, indent=2)}"
-                            )
-                            st.error(f"Stack trace:\n{traceback.format_exc()}")
-
-                st.markdown("---")  # Add separator between sheets
-
-            # Raw JSON View
-            with st.expander("🔍 Raw JSON Data"):
-                st.json(metadata)
-
-            # Download button for JSON
-            json_str = json.dumps(metadata, indent=2)
-            st.download_button(label="Download JSON",
-                               data=json_str,
-                               file_name=f"{uploaded_file.name}_metadata.json",
-                               mime="application/json")
-
-        except Exception as e:
-            st.error(f"Error processing file: {str(e)}")
-            st.error(f"Detailed error:\n{traceback.format_exc()}")
-            st.error("Please make sure you've uploaded a valid Excel file.")
-
+        with st.spinner("Extracting metadata..."):
+            try:
+                # Extract metadata
+                extractor = ExcelMetadataExtractor(uploaded_file)
+                metadata = extractor.extract_all_metadata()
+    
+                # Display sections
+                st.header("📑 Extracted Metadata")
+    
+                # File Properties Section
+                with st.expander("📌 File Properties", expanded=True):
+                    st.json(metadata["fileProperties"])
+    
+                # Worksheets Section
+                for sheet_idx, sheet in enumerate(metadata["worksheets"]):
+                    st.subheader(f"📚 Sheet: {sheet['sheetName']}")
+    
+                    # Sheet metrics
+                    cols = st.columns(3)
+                    with cols[0]:
+                        st.metric("Rows", sheet["rowCount"])
+                    with cols[1]:
+                        st.metric("Columns", sheet["columnCount"])
+                    with cols[2]:
+                        st.metric("Merged Cells", len(sheet.get("mergedCells",
+                                                                [])))
+    
+                    # Merged Cells (at same level as other sections)
+                    if sheet.get("mergedCells"):
+                        st.markdown("##### 🔀 Merged Cells")
+                        st.code("\n".join(sheet["mergedCells"]))
+    
+                    # Regions (at same level as other sections)
+                    if "regions" in sheet and sheet["regions"]:
+                        st.markdown("##### 📍 Detected Regions")
+                        for region in sheet["regions"]:
+                            try:
+                                # サマリー情報を含むメタデータ領域の場合
+                                if region.get("type") == "metadata":
+                                    st.markdown("##### 📊 Sheet Summary")
+                                    with st.expander("Summary Information"):
+    
+                                        st.markdown("#### Region Statistics")
+                                        st.metric("Total Regions", region.get('totalRegions', 0))
+                                        st.metric("Drawing Regions", region.get('drawingRegions', 0))
+                                        st.metric("Cell Regions", region.get('cellRegions', 0))
+                                        if "summary" in region:
+                                            st.markdown("#### Summary")
+                                            st.info(region["summary"])
+                                else:
+                                    # 通常の領域の場合
+                                    region_title = f"{region['regionType'].title()} Region"
+                                    if "range" in region:
+                                        region_title += f" - {region['range']}"
+                                    with st.expander(region_title):
+                                        display_region_info(region)
+                                        if "summary" in region:
+                                            st.markdown("#### Region Summary")
+                                            st.write(region["summary"])
+    
+                            except Exception as e:
+                                st.error(
+                                    f"Error processing region: {str(e)}\nRegion data: {json.dumps(region, indent=2)}"
+                                )
+                                st.error(f"Stack trace:\n{traceback.format_exc()}")
+    
+                    st.markdown("---")  # Add separator between sheets
+    
+                # Raw JSON View
+                with st.expander("🔍 Raw JSON Data"):
+                    st.json(metadata)
+    
+                # Automatically generate JSON file
+                json_str = json.dumps(metadata, indent=2)
+                with open(f"{uploaded_file.name}_metadata.json", "w") as file:
+                    file.write(json_str)
+            except Exception as e:
+                st.error(f"Error processing file: {str(e)}")
+                st.error(f"Detailed error:\n{traceback.format_exc()}")
+                st.error("Please make sure you've uploaded a valid Excel file.")
+    
 
 if __name__ == "__main__":
     main()

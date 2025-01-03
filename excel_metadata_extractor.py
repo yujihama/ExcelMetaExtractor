@@ -937,10 +937,10 @@ class ExcelMetadataExtractor:
                     max_row, max_col = self.find_region_boundaries(
                         sheet, row, col)
 
-                    with st.expander(f"Region: row:{max_row},col:{max_col}"):
-                        st.write(
-                            f"Region end : {get_column_letter(max_col)}{max_row}"
-                        )
+                    # with st.expander(f"Region: row:{max_row},col:{max_col}"):
+                    #     st.write(
+                    #         f"Region end : {get_column_letter(max_col)}{max_row}"
+                    #     )
 
                     # 不要な区切り文字のみの場合はスキップ
                     cell_value = sheet.cell(row=row, column=col).value
