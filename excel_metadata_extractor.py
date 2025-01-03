@@ -22,6 +22,7 @@ from openpyxl.chart import (
     Reference,
 )
 import matplotlib.pyplot as plt
+from openpyxl.utils.cell import coordinate_from_string, column_index_from_string
 
 
 class ExcelMetadataExtractor:
@@ -156,7 +157,7 @@ class ExcelMetadataExtractor:
         for sheetname in workbook.sheetnames:
             sheet = workbook[sheetname]
             for chart_index, chart in enumerate(sheet._charts):
-                # タイトル、軸ラベル取得処理を修正
+                # タイトル取得処理をさらに修正
                 title = "Untitled"  # デフォルトタイトル
                 if chart.title:
                     if isinstance(chart.title, str):
@@ -164,14 +165,23 @@ class ExcelMetadataExtractor:
                     elif hasattr(chart.title, 'tx') and chart.title.tx:
                         if hasattr(chart.title.tx,
                                    'rich') and chart.title.tx.rich:
-                            title = chart.title.tx.rich.p[0].r.t if len(
-                                chart.title.tx.rich.p
-                            ) > 0 and chart.title.tx.rich.p[0].r else "Untitled"
+                            if len(chart.title.tx.rich.p) > 0:
+                                # p が存在する場合のみ処理
+                                paragraph = chart.title.tx.rich.p[0]
+                                if hasattr(paragraph, 'r') and len(
+                                        paragraph.r) > 0 and hasattr(
+                                            paragraph.r[0], 't'):
+                                    title = paragraph.r[0].t
+                                elif hasattr(paragraph, 'fld') and len(
+                                        paragraph.fld) > 0 and hasattr(
+                                            paragraph.fld[0], 't'):
+                                    title = paragraph.fld[0].t
                         elif hasattr(chart.title.tx,
                                      'strRef') and chart.title.tx.strRef:
                             # タイトルが数式で参照されている場合は、数式を取得
                             title = chart.title.tx.strRef.f
 
+                # 軸ラベル取得処理
                 x_axis_title = None
                 if chart.x_axis and chart.x_axis.title:
                     if isinstance(chart.x_axis.title, str):
@@ -224,44 +234,98 @@ class ExcelMetadataExtractor:
                     for series in chart.series:
                         chart_data["series_colors"].append(None)
 
+                        # データとカテゴリの取得処理を修正
                         if series.val.numRef:
+                            cell_range = series.val.numRef.f.split('!')[1]
+                            start, end = cell_range.replace('$', '').split(':')
+
+                            # coordinate_from_string() には文字列を渡す
+                            min_col, min_row = coordinate_from_string(
+                                str(start))
+                            max_col, max_row = coordinate_from_string(str(end))
+
                             values = Reference(
                                 sheet,
-                                min_col=int(
-                                    series.val.numRef.f.split('!')[1].split(
-                                        ':')[0][1:]),
-                                min_row=int(
-                                    series.val.numRef.f.split('!')[1].split(
-                                        ':')[0][0:]),
-                                max_row=int(
-                                    series.val.numRef.f.split('!')[1].split(
-                                        ':')[1][0:]))
-                            data = [
-                                cell.value for row in sheet[values.rows]
-                                for cell in row
-                            ]
+                                min_col=column_index_from_string(min_col),
+                                min_row=int(min_row),
+                                max_col=column_index_from_string(max_col),
+                                max_row=int(max_row))
+
+                            data = []
+                            # for row_tuple in sheet.iter_rows(
+                            #         min_col=values.min_col,
+                            #         min_row=values.min_row,
+                            #         max_col=values.max_col,
+                            #         max_row=values.max_row):
+                            #     row_data = [cell.value for cell in row_tuple]
+                            #     data.extend(row_data)
+                            for row_tuple in sheet.iter_rows(
+                                    min_col=values.min_col,
+                                    min_row=values.min_row,
+                                    max_col=values.max_col,
+                                    max_row=values.max_row):
+                                row_data = []
+                                for cell in row_tuple:
+                                    if cell.value == 'X':
+                                        row_data.append(0)
+                                    else:
+                                        try:
+                                            row_data.append(float(cell.value))
+                                        except (ValueError, TypeError):
+                                            row_data.append(0)
+                                data.extend(row_data)
                             chart_data["data"].append(data)
 
                         if series.cat.numRef:
+
+                            cell_range = series.cat.numRef.f.split('!')[1]
+                            print(type(series.cat.numRef.f))
+                            start, end = cell_range.replace('$', '').split(':')
+                            # coordinate_from_string() には文字列を渡す
+                            min_col, min_row = coordinate_from_string(start)
+                            max_col, max_row = coordinate_from_string(end)
+
                             categories = Reference(
                                 sheet,
-                                min_col=int(
-                                    series.cat.numRef.f.split('!')[1].split(
-                                        ':')[0][1:]),
-                                min_row=int(
-                                    series.cat.numRef.f.split('!')[1].split(
-                                        ':')[0][0:]),
-                                max_row=int(
-                                    series.cat.numRef.f.split('!')[1].split(
-                                        ':')[1][0:]))
-                            category_labels = [
-                                cell.value for row in sheet[categories.rows]
-                                for cell in row
-                            ]
+                                min_col=column_index_from_string(min_col),
+                                min_row=int(min_row),
+                                max_col=column_index_from_string(max_col),
+                                max_row=int(max_row))
+                            category_labels = []  # 初期化
+                            for row_tuple in sheet.iter_rows(
+                                    min_col=categories.min_col,
+                                    min_row=categories.min_row,
+                                    max_col=categories.max_col,
+                                    max_row=categories.max_row):
+                                row_data = [cell.value for cell in row_tuple]
+                                category_labels.extend(row_data)
+                            chart_data["categories"].append(category_labels)
+
+                        elif series.cat.strRef:  # strRef が存在する場合の処理を追加
+
+                            cell_range = series.cat.strRef.f.split('!')[1]
+                            start, end = cell_range.replace('$', '').split(':')
+                            # coordinate_from_string() には文字列を渡す
+                            min_col, min_row = coordinate_from_string(start)
+                            max_col, max_row = coordinate_from_string(end)
+
+                            categories = Reference(
+                                sheet,
+                                min_col=column_index_from_string(min_col),
+                                min_row=int(min_row),
+                                max_col=column_index_from_string(max_col),
+                                max_row=int(max_row))
+                            category_labels = []  # 初期化
+                            for row_tuple in sheet.iter_rows(
+                                    min_col=categories.min_col,
+                                    min_row=categories.min_row,
+                                    max_col=categories.max_col,
+                                    max_row=categories.max_row):
+                                row_data = [cell.value for cell in row_tuple]
+                                category_labels.extend(row_data)
                             chart_data["categories"].append(category_labels)
 
                 chart_data_list.append(chart_data)
-
         return chart_data_list
 
     def recreate_charts(self, chart_data_list, output_dir):
@@ -269,11 +333,14 @@ class ExcelMetadataExtractor:
             fig, ax = plt.subplots()
 
             if chart_data["type"] == "BarChart":
+                print(chart_data["data"])
+
                 if len(chart_data["data"]) > 1:
                     # 複数系列の積み上げ棒グラフを想定 (必要に応じてグループ化棒グラフに変更)
                     import numpy as np
                     width = 0.35
                     x = np.arange(len(chart_data["categories"][0]))
+
                     bottom = np.zeros(len(chart_data["categories"][0]))
                     for j, data in enumerate(chart_data["data"]):
                         ax.bar(x,
@@ -322,7 +389,7 @@ class ExcelMetadataExtractor:
                 ax.legend()
 
             # 画像として保存
-            output_filename = f"{output_dir}/recreated_chart_{i+1}.png"
+            output_filename = f"recreated_chart_{i+1}.png"
             plt.savefig(output_filename)
             plt.close(fig)
             print(f"Recreated chart saved to: {output_filename}")
@@ -465,10 +532,11 @@ class ExcelMetadataExtractor:
                                 temp_file_path = temp_file.name
                             chart_data_list = self.extract_chart_data(
                                 temp_file_path, output_dir)
+                            print("debug1")
                             self.recreate_charts(chart_data_list, output_dir)
 
                             # Get image path for current chart
-                            image_path = f"{output_dir}/recreated_chart_{chart_ref_num}.png"
+                            image_path = "recreated_chart_1.png"
 
                             chart_info = {
                                 "type":
@@ -492,8 +560,8 @@ class ExcelMetadataExtractor:
                                     st.write(
                                         f"Found chart data: {chart_xml_path}")
                                     with excel_zip.open(
-                                            chart_xml_path) as chart_xml:
-                                        chart_tree = ET.parse(chart_xml)
+                                            chart_xml_path) as chart_xml_file:
+                                        chart_tree = ET.parse(chart_xml_file)
                                         chart_root = chart_tree.getroot()
 
                                         # チャートタイプの取得
