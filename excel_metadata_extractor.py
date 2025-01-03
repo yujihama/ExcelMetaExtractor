@@ -149,7 +149,7 @@ class ExcelMetadataExtractor:
         return sheet_drawing_map
 
     def extract_chart_data(self, filepath, output_dir):
-        workbook = load_workbook(filepath, read_only=True, data_only=True) # data_only=True でセルの値を読み込む
+        workbook = load_workbook(filepath, data_only=True) # data_only=True でセルの値を読み込む
         chart_data_list = []
 
         for sheetname in workbook.sheetnames:
