@@ -263,10 +263,59 @@ class ExcelMetadataExtractor:
                         # 5. グラフ (c:chart)
                         chart = anchor.find('.//c:chart', self.ns)
                         if chart is not None:
+                            chart_ref = chart.get(f'{{{self.ns["r"]}}}id')
                             chart_info = {
                                 "type": "chart",
-                                "chart_ref": chart.get(f'{{{self.ns["r"]}}}id')
+                                "chart_ref": chart_ref
                             }
+                            
+                            # チャートデータの取得
+                            try:
+                                chart_xml_path = f'xl/charts/chart{chart_ref}.xml'
+                                if chart_xml_path in excel_zip.namelist():
+                                    with excel_zip.open(chart_xml_path) as chart_xml:
+                                        chart_tree = ET.parse(chart_xml)
+                                        chart_root = chart_tree.getroot()
+                                        
+                                        # チャートタイプの取得
+                                        chart_type = None
+                                        for elem in chart_root.findall('.//c:plotArea/*', self.ns):
+                                            if elem.tag.endswith('}barChart'):
+                                                chart_type = 'bar'
+                                            elif elem.tag.endswith('}pieChart'):
+                                                chart_type = 'pie'
+                                            elif elem.tag.endswith('}lineChart'):
+                                                chart_type = 'line'
+                                            break
+                                        
+                                        if chart_type:
+                                            chart_info["chartType"] = chart_type
+                                        
+                                        # タイトルの取得
+                                        title = chart_root.find('.//c:title//c:tx//c:rich//a:t', self.ns)
+                                        if title is not None and title.text:
+                                            chart_info["title"] = title.text
+                                        
+                                        # データ系列の取得
+                                        series_list = []
+                                        for series in chart_root.findall('.//c:ser', self.ns):
+                                            series_name = series.find('.//c:tx//c:v', self.ns)
+                                            if series_name is not None:
+                                                series_info = {"name": series_name.text}
+                                                
+                                                # データ範囲の取得
+                                                values = series.find('.//c:val//c:numRef//c:f', self.ns)
+                                                if values is not None:
+                                                    series_info["data_range"] = values.text
+                                                
+                                                series_list.append(series_info)
+                                        
+                                        if series_list:
+                                            chart_info["series"] = series_list
+                                            
+                            except Exception as e:
+                                print(f"Error extracting chart data: {str(e)}")
+                                
                             drawing_elements.append(chart_info)
 
                         # 各図形要素に共通の座標情報を追加
