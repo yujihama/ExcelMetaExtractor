@@ -27,7 +27,7 @@ class OpenAIHelper:
                 prompt = f"""以下のExcel領域が何について記載されているか簡潔に説明してください:
                 領域タイプ: {region["regionType"]}
                 範囲: {region["range"]}
-                内容: {json.loads(region, ensure_ascii=False)[:200]}
+                内容: {json.dumps(region, ensure_ascii=False)[:200]}
                 """
 
             response = self.client.chat.completions.create(model=self.model,
@@ -40,7 +40,7 @@ class OpenAIHelper:
                                                            max_tokens=1000)
             with st.expander("LLM_Summary"):
                 st.write(prompt)
-                st.write(response["choices"][0]["message"]["content"])
+                st.write(response.choices[0].message.content)
 
             return response.choices[0].message.content
         except Exception as e:
