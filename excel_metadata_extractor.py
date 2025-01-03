@@ -13,6 +13,15 @@ import traceback
 from pathlib import Path
 import tempfile
 import streamlit as st
+import re
+from openpyxl.chart import (
+    BarChart,
+    LineChart,
+    PieChart,
+    ScatterChart,
+    Reference,
+)
+import matplotlib.pyplot as plt
 
 
 class ExcelMetadataExtractor:
@@ -139,6 +148,140 @@ class ExcelMetadataExtractor:
         )
         return sheet_drawing_map
 
+    def extract_chart_data(self, filepath, output_dir):
+        workbook = load_workbook(filepath, read_only=True, data_only=True) # data_only=True でセルの値を読み込む
+        chart_data_list = []
+
+        for sheetname in workbook.sheetnames:
+            sheet = workbook[sheetname]
+            for chart in sheet._charts:
+                chart_data = {
+                    "sheetname": sheetname,
+                    "title": chart.title.tx.rich.p[0].r.t if chart.title else "Untitled",
+                    "type": type(chart).__name__,
+                    "data": [],
+                    "categories": [],
+                    "x_axis_title": chart.x_axis.title.tx.rich.p[0].r.t if chart.x_axis.title else None,
+                    "y_axis_title": chart.y_axis.title.tx.rich.p[0].r.t if chart.y_axis.title else None,
+                    # openpyxl では色の取得が難しいため、一旦 None にする
+                    "series_colors": [], 
+                }
+
+                if isinstance(chart, (BarChart, LineChart, PieChart, ScatterChart)): # 主なチャートタイプに対応
+                    for series in chart.series:
+                        chart_data["series_colors"].append(None) # 色情報をプレースホルダーとして追加
+                        # データの取得
+                        if series.val.numRef:
+                           values = Reference(sheet, min_col=series.val.numRef.f.split('!')[1].split(':')[0][1:],
+                                            min_row=int(series.val.numRef.f.split('!')[1].split(':')[0][0:]),
+                                            max_row=int(series.val.numRef.f.split('!')[1].split(':')[1][0:]))
+                           data = [cell.value for row in sheet[values.rows] for cell in row]
+                           chart_data["data"].append(data)
+
+                        # カテゴリ（X軸ラベル）の取得
+                        if series.cat.numRef:
+                           categories = Reference(sheet, min_col=series.cat.numRef.f.split('!')[1].split(':')[0][1:],
+                                                min_row=int(series.cat.numRef.f.split('!')[1].split(':')[0][0:]),
+                                                max_row=int(series.cat.numRef.f.split('!')[1].split(':')[1][0:]))
+                           category_labels = [cell.value for row in sheet[categories.rows] for cell in row]
+                           chart_data["categories"].append(category_labels)
+
+                chart_data_list.append(chart_data)
+
+        return chart_data_list
+
+    def recreate_charts(chart_data_list, output_dir):
+        for i, chart_data in enumerate(chart_data_list):
+            fig, ax = plt.subplots()
+
+            if chart_data["type"] == "BarChart":
+                if len(chart_data["data"]) > 1:
+                    # 複数系列の積み上げ棒グラフを想定 (必要に応じてグループ化棒グラフに変更)
+                    import numpy as np
+                    width = 0.35
+                    x = np.arange(len(chart_data["categories"][0]))
+                    bottom = np.zeros(len(chart_data["categories"][0]))
+                    for j, data in enumerate(chart_data["data"]):
+                        ax.bar(x, data, width, label=f'Series {j+1}', bottom=bottom)
+                        bottom += np.array(data)
+                else:
+                    ax.bar(chart_data["categories"][0], chart_data["data"][0])
+            elif chart_data["type"] == "LineChart":
+                for j, data in enumerate(chart_data["data"]):
+                    ax.plot(chart_data["categories"][0], data, marker='o', label=f'Series {j+1}')
+            elif chart_data["type"] == "PieChart":
+                if len(chart_data["data"][0]) == len(chart_data["categories"][0]):
+                    ax.pie(chart_data["data"][0], labels=chart_data["categories"][0], autopct='%1.1f%%', startangle=140)
+                    ax.axis('equal')
+                else:
+                    print(f"Skipping PieChart: Data and categories length mismatch in chart {i+1}")
+            elif chart_data["type"] == "ScatterChart":
+                for j, data in enumerate(chart_data["data"]):
+                    ax.scatter(chart_data["categories"][0], data, label=f'Series {j+1}')
+            else:
+                print(f"Unsupported chart type: {chart_data['type']} in chart {i+1}")
+                continue
+
+            ax.set_title(chart_data["title"])
+            ax.set_xlabel(chart_data["x_axis_title"])
+            ax.set_ylabel(chart_data["y_axis_title"])
+
+            # 凡例を表示（データがある場合のみ）
+            if len(chart_data["data"]) > 0:
+              ax.legend()
+
+            # 画像として保存
+            output_filename = f"{output_dir}/recreated_chart_{i+1}.png"
+            plt.savefig(output_filename)
+            plt.close(fig)
+            print(f"Recreated chart saved to: {output_filename}")
+
+    def recreate_charts(self, chart_data_list, output_dir):
+        for i, chart_data in enumerate(chart_data_list):
+            fig, ax = plt.subplots()
+
+            if chart_data["type"] == "BarChart":
+                if len(chart_data["data"]) > 1:
+                    # 複数系列の積み上げ棒グラフを想定 (必要に応じてグループ化棒グラフに変更)
+                    import numpy as np
+                    width = 0.35
+                    x = np.arange(len(chart_data["categories"][0]))
+                    bottom = np.zeros(len(chart_data["categories"][0]))
+                    for j, data in enumerate(chart_data["data"]):
+                        ax.bar(x, data, width, label=f'Series {j+1}', bottom=bottom)
+                        bottom += np.array(data)
+                else:
+                    ax.bar(chart_data["categories"][0], chart_data["data"][0])
+            elif chart_data["type"] == "LineChart":
+                for j, data in enumerate(chart_data["data"]):
+                    ax.plot(chart_data["categories"][0], data, marker='o', label=f'Series {j+1}')
+            elif chart_data["type"] == "PieChart":
+                if len(chart_data["data"][0]) == len(chart_data["categories"][0]):
+                    ax.pie(chart_data["data"][0], labels=chart_data["categories"][0], autopct='%1.1f%%', startangle=140)
+                    ax.axis('equal')
+                else:
+                    print(f"Skipping PieChart: Data and categories length mismatch in chart {i+1}")
+            elif chart_data["type"] == "ScatterChart":
+                for j, data in enumerate(chart_data["data"]):
+                    ax.scatter(chart_data["categories"][0], data, label=f'Series {j+1}')
+            else:
+                print(f"Unsupported chart type: {chart_data['type']} in chart {i+1}")
+                continue
+
+            ax.set_title(chart_data["title"])
+            ax.set_xlabel(chart_data["x_axis_title"])
+            ax.set_ylabel(chart_data["y_axis_title"])
+
+            # 凡例を表示（データがある場合のみ）
+            if len(chart_data["data"]) > 0:
+              ax.legend()
+
+            # 画像として保存
+            output_filename = f"{output_dir}/recreated_chart_{i+1}.png"
+            plt.savefig(output_filename)
+            plt.close(fig)
+            print(f"Recreated chart saved to: {output_filename}")
+    
     def extract_drawing_info(self, sheet, excel_zip,
                              drawing_path) -> List[Dict[str, Any]]:
         """Extract information about images and shapes from drawing.xml"""
@@ -268,54 +411,84 @@ class ExcelMetadataExtractor:
                                 "type": "chart",
                                 "chart_ref": chart_ref
                             }
-                            
+
                             # チャートデータの取得
                             try:
-                                chart_xml_path = f'xl/charts/chart{chart_ref}.xml'
+                                chart_ref_num = re.search(
+                                    r'rId(\d+)', chart_ref).group(1)
+                                chart_xml_path = f'xl/charts/chart{chart_ref_num}.xml'
+                                st.write(
+                                    f"Extracting chart data from {chart_xml_path}"
+                                )
                                 if chart_xml_path in excel_zip.namelist():
-                                    with excel_zip.open(chart_xml_path) as chart_xml:
+                                    st.write(
+                                        f"Found chart data: {chart_xml_path}")
+                                    with excel_zip.open(
+                                            chart_xml_path) as chart_xml:
                                         chart_tree = ET.parse(chart_xml)
                                         chart_root = chart_tree.getroot()
-                                        
+
                                         # チャートタイプの取得
                                         chart_type = None
-                                        for elem in chart_root.findall('.//c:plotArea/*', self.ns):
-                                            if elem.tag.endswith('}barChart'):
+                                        for elem in chart_root.findall(
+                                                './/c:plotArea/*', self.ns):
+                                            st.write(
+                                                f"Finding Chart type: {elem.tag}"
+                                            )
+                                            if elem.tag.endswith('barChart'):
                                                 chart_type = 'bar'
-                                            elif elem.tag.endswith('}pieChart'):
+                                            elif elem.tag.endswith('pieChart'):
                                                 chart_type = 'pie'
-                                            elif elem.tag.endswith('}lineChart'):
+                                            elif elem.tag.endswith(
+                                                    'lineChart'):
                                                 chart_type = 'line'
-                                            break
-                                        
+                                            if chart_type is not None:
+                                                break
+
                                         if chart_type:
-                                            chart_info["chartType"] = chart_type
-                                        
+                                            chart_info[
+                                                "chartType"] = chart_type
+
                                         # タイトルの取得
-                                        title = chart_root.find('.//c:title//c:tx//c:rich//a:t', self.ns)
+                                        title = chart_root.find(
+                                            './/c:title//c:tx//c:rich//a:t',
+                                            self.ns)
                                         if title is not None and title.text:
                                             chart_info["title"] = title.text
-                                        
+
                                         # データ系列の取得
                                         series_list = []
-                                        for series in chart_root.findall('.//c:ser', self.ns):
-                                            series_name = series.find('.//c:tx//c:v', self.ns)
+                                        for series in chart_root.findall(
+                                                './/c:ser', self.ns):
+
+                                            series_name = series.find(
+                                                './/c:tx//c:f', self.ns)
+                                            st.write(
+                                                f"Extracting series data:{series_name}"
+                                            )
                                             if series_name is not None:
-                                                series_info = {"name": series_name.text}
-                                                
+                                                series_info = {
+                                                    "name": series_name.text
+                                                }
+
                                                 # データ範囲の取得
-                                                values = series.find('.//c:val//c:numRef//c:f', self.ns)
+                                                values = series.find(
+                                                    './/c:val//c:numRef//c:f',
+                                                    self.ns)
                                                 if values is not None:
-                                                    series_info["data_range"] = values.text
-                                                
+                                                    series_info[
+                                                        "data_range"] = values.text
+
                                                 series_list.append(series_info)
-                                        
+
                                         if series_list:
                                             chart_info["series"] = series_list
-                                            
+
+                                        st.write(chart_info)
+
                             except Exception as e:
                                 print(f"Error extracting chart data: {str(e)}")
-                                
+
                             drawing_elements.append(chart_info)
 
                         # 各図形要素に共通の座標情報を追加
@@ -457,8 +630,6 @@ class ExcelMetadataExtractor:
             )
             return None
 
-    
-
     def _extract_group_info(self, grp_elem) -> Optional[Dict[str, Any]]:
         """Extract information from a group shape element (xdr:grpSp)"""
         try:
@@ -572,7 +743,9 @@ class ExcelMetadataExtractor:
                                 "description": drawing.get("description", ""),
                                 "coordinates": drawing["coordinates"],
                                 "text_content":
-                                drawing.get("text_content", "")
+                                drawing.get("text_content", ""),
+                                "chartType": drawing.get("chartType", ""),
+                                "series": drawing.get("series", "")
                             }
 
                             # 図形タイプ別の追加情報
@@ -711,14 +884,14 @@ class ExcelMetadataExtractor:
             for idx, region in enumerate(drawing_regions + cell_regions):
                 if "regionType" not in region:
                     region["regionType"] = region.get("type", "unknown")
-                
-                # サマリーを生成して追加（1回のみ）
+
+                # サマリーを生成して追加
                 region["summary"] = self.openai_helper.summarize_region(region)
 
             # 描画オブジェクトとセル領域を両方保持（重複を許可）
             regions.extend(drawing_regions)
             regions.extend(cell_regions)
-            
+
             # メタデータ情報を追加
             if regions:
                 metadata = {
@@ -728,7 +901,7 @@ class ExcelMetadataExtractor:
                     "drawingRegions": len(drawing_regions),
                     "cellRegions": len(cell_regions)
                 }
-                
+
                 # シート全体のメタデータをLLMで分析
                 sheet_data = {
                     "sheetName": sheet.title,
@@ -736,7 +909,9 @@ class ExcelMetadataExtractor:
                     "drawingRegionsCount": len(drawing_regions),
                     "cellRegionsCount": len(cell_regions)
                 }
-                metadata["summary"] = self.openai_helper.generate_sheet_summary(sheet_data)
+                metadata[
+                    "summary"] = self.openai_helper.generate_sheet_summary(
+                        sheet_data)
                 regions.append(metadata)
 
             print(
@@ -794,7 +969,7 @@ class ExcelMetadataExtractor:
         max_row = start_row
         max_col = start_col
         min_empty_rows = 1  # 空白行が1行以上続いたら領域の終わりとみなす
-        min_empty_cols = 1  # 空白列が1列以上続いたら領域の終わりとみなす
+        min_empty_cols = 1  # 空白列が1列以上続いたら領域の終わナとみなす
 
         # 下方向のスキャン
         empty_row_count = 0

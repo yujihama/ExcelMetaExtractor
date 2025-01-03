@@ -22,6 +22,13 @@ class OpenAIHelper:
                 ヘッダー構造: {json.dumps(header_structure, ensure_ascii=False)}
                 データサンプル: {json.dumps(cells[:2], ensure_ascii=False)}
                 """
+            elif region["regionType"] == "table":
+                # チャート用のサマリー生成
+                prompt = f"""以下のグラフが何について記載されているか簡潔に説明してください:
+                グラフタイプ: {region["chartType"]}
+                データ範囲: {region["series"][0]["data_range"]}
+                内容: {json.dumps(region, ensure_ascii=False)[:200]}
+                """
             else:
                 # その他の領域用のサマリー生成
                 prompt = f"""以下のExcel領域が何について記載されているか簡潔に説明してください:

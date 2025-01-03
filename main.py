@@ -82,6 +82,7 @@ def display_region_info(region):
                     st.text(f"Diagram Type: {region['diagram_type']}")
             elif region['type'] == 'chart':
                 st.markdown("### Chart Details")
+                st.write(region)
                 if 'chart_ref' in region:
                     st.text(f"Chart Reference: {region['chart_ref']}")
                 if 'chartType' in region:
@@ -91,9 +92,11 @@ def display_region_info(region):
                 if 'series' in region:
                     st.markdown("#### Data Series")
                     for series in region['series']:
-                        st.markdown(f"- Series: {series.get('name', 'Unnamed')}")
+                        st.markdown(
+                            f"- Series: {series.get('name', 'Unnamed')}")
                         if 'data_range' in series:
-                            st.markdown(f"  Data Range: {series['data_range']}")
+                            st.markdown(
+                                f"  Data Range: {series['data_range']}")
 
         elif region['regionType'] == 'table':
             st.markdown("### Table Information")
