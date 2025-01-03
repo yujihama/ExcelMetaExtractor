@@ -81,9 +81,19 @@ def display_region_info(region):
                     st.markdown("SmartArt Details:")
                     st.text(f"Diagram Type: {region['diagram_type']}")
             elif region['type'] == 'chart':
+                st.markdown("### Chart Details")
                 if 'chart_ref' in region:
-                    st.markdown("Chart Details:")
                     st.text(f"Chart Reference: {region['chart_ref']}")
+                if 'chartType' in region:
+                    st.metric("Chart Type", region['chartType'].title())
+                if 'title' in region:
+                    st.text(f"Title: {region['title']}")
+                if 'series' in region:
+                    st.markdown("#### Data Series")
+                    for series in region['series']:
+                        st.markdown(f"- Series: {series.get('name', 'Unnamed')}")
+                        if 'data_range' in series:
+                            st.markdown(f"  Data Range: {series['data_range']}")
 
         elif region['regionType'] == 'table':
             st.markdown("### Table Information")
