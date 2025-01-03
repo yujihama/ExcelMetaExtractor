@@ -977,6 +977,7 @@ class ExcelMetadataExtractor:
                         "regionType": region_type,
                         "range":
                         f"{get_column_letter(col)}{row}:{get_column_letter(max_col)}{max_row}",
+                        "sampleCells": cells_data,
                         "mergedCells": merged_cells
                     }
 
@@ -1407,6 +1408,13 @@ class ExcelMetadataExtractor:
         try:
             file_metadata = self.get_file_metadata()
             sheets_metadata = self.get_sheet_metadata()
+
+            # Remove sampleCells from regions before returning
+            for sheet in sheets_metadata:
+                if "regions" in sheet:
+                    for region in sheet["regions"]:
+                        if "sampleCells" in region:
+                            del region["sampleCells"]
 
             metadata = {
                 **file_metadata,
