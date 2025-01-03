@@ -697,21 +697,12 @@ class ExcelMetadataExtractor:
                         )
                         return regions
 
-            # 各領域にサマリーを追加
-            summaries = {}
+            # すべての領域にregionTypeとサマリーを設定
             for idx, region in enumerate(drawing_regions + cell_regions):
-                region_id = f"region{idx + 1}"
-                summary = self.openai_helper.summarize_region(region)
-                # サマリーを直接領域のメタデータに追加
-                region["summary"] = summary
-                summaries[region_id] = summary
-
-            # すべての領域にregionTypeを確認・設定
-            for region in drawing_regions + cell_regions:
                 if "regionType" not in region:
                     region["regionType"] = region.get("type", "unknown")
                 
-                # サマリーを生成して追加
+                # サマリーを生成して追加（1回のみ）
                 region["summary"] = self.openai_helper.summarize_region(region)
 
             # 描画オブジェクトとセル領域を両方保持（重複を許可）
