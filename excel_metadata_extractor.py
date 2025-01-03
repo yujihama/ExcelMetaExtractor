@@ -408,46 +408,7 @@ class ExcelMetadataExtractor:
             )
             return None
 
-    def _emu_to_cell_coordinates(self, x: Optional[str], y: Optional[str],
-                                 cx: Optional[str],
-                                 cy: Optional[str]) -> Dict[str, Any]:
-        """Convert EMU coordinates to cell coordinates"""
-        try:
-            # EMUからセル座標への変換（1インチ = 914400 EMU）
-            EMU_PER_INCH = 914400
-            CELLS_PER_INCH = 6  # おおよその値
-
-            if all(v is not None for v in [x, y, cx, cy]):
-                from_col = int(int(x) / EMU_PER_INCH * CELLS_PER_INCH)
-                from_row = int(int(y) / EMU_PER_INCH * CELLS_PER_INCH)
-                width_cells = int(int(cx) / EMU_PER_INCH * CELLS_PER_INCH)
-                height_cells = int(int(cy) / EMU_PER_INCH * CELLS_PER_INCH)
-
-                return {
-                    "from": {
-                        "col": from_col + 1,
-                        "row": from_row + 1
-                    },
-                    "to": {
-                        "col": from_col + width_cells + 1,
-                        "row": from_row + height_cells + 1
-                    }
-                }
-            else:
-                return {
-                    "from": {
-                        "col": 1,
-                        "row": 1
-                    },
-                    "to": {
-                        "col": 2,
-                        "row": 2
-                    }
-                }
-
-        except Exception as e:
-            print(f"Error converting EMU coordinates: {str(e)}")
-            return {"from": {"col": 1, "row": 1}, "to": {"col": 2, "row": 2}}
+    
 
     def _extract_group_info(self, grp_elem) -> Optional[Dict[str, Any]]:
         """Extract information from a group shape element (xdr:grpSp)"""

@@ -108,50 +108,6 @@ Respond in JSON format:
                 "confidence": 0
             })
 
-    def analyze_table_structure_with_hints(self, data: str) -> Dict[str, Any]:
-        """Analyze table structure using LLM with hints about potential header rows"""
-        try:
-            prompt = f"""与えられたテーブルのサンプルデータとヘッダー行の候補から、以下を分析してください:
-1. テーブルのヘッダー構造（単一行のヘッダー/複合ヘッダー）
-2. ヘッダー行の正確な位置（複合ヘッダーの場合は複数行回答）
-3. 各列の種類と意味
-
-データ:
-{data}
-
-ヘッダーの判断基準:
-- 一覧表やマスタ等の表題
-- 列見出しの階層構造
-- データ分類や単位の記載
-- 結合セルの使用パターン
-
-JSON形式で返答してください:
-{{
-    "headerType": "single" または "multiple" または "none",
-    "headerRows": [行番号のリスト],
-    "confidence": 0-1の数値
-}}"""
-
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[{
-                    "role": "user",
-                    "content": prompt
-                }],
-                response_format={"type": "json_object"})
-            with st.expander("🔍 Analyzed Table Structure"):
-                st.write(prompt)
-                st.write(response.choices[0].message.content)
-
-            return response.choices[0].message.content
-        except Exception as e:
-            print(f"Error in analyze_table_structure_with_hints: {str(e)}")
-            return json.dumps({
-                "headerType": "none",
-                "headerRows": [],
-                "confidence": 0
-            })
-
     def analyze_table_structure(self, cells_data: str,
                                 merged_cells) -> Dict[str, Any]:
         """Analyze table structure using LLM with size limits"""
@@ -225,96 +181,12 @@ Respond in JSON format:
                 "confidence": 0
             })
 
-    def analyze_text_block(self, text_content: str) -> Dict[str, Any]:
-        """Analyze text block content using LLM with size limits"""
-        sample_text = text_content[:1000]
-
-        prompt = f"""Analyze the following text content from an Excel sheet:
-1. Type of content (議事録, コメント, 説明文など)
-2. Importance level
-3. Key points or takeaways
-4. Consider Japanese text patterns and business terms
-
-Text sample:
-{sample_text}
-
-Respond in JSON format:
-{{
-    "contentType": string,
-    "importance": "high" or "medium" or "low",
-    "summary": string,
-    "keyPoints": [string],
-    "confidence": number
-}}
-"""
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[{
-                    "role": "user",
-                    "content": prompt
-                }],
-                response_format={"type": "json_object"},
-                max_tokens=1000)
-            return response.choices[0].message.content
-        except Exception as e:
-            print(f"Error in analyze_text_block: {str(e)}")
-            return json.dumps({
-                "contentType": "unknown",
-                "importance": "low",
-                "summary": "Error in analysis",
-                "keyPoints": [],
-                "confidence": 0
-            })
-
-    def analyze_chart(self, chart_elements: str) -> Dict[str, Any]:
-        """Analyze chart elements using LLM with size limits"""
-        sample_elements = chart_elements[:1000]
-
-        prompt = f"""Analyze the following chart elements from Excel:
-1. Type of visualization
-2. Purpose and key message
-3. Data relationships
-4. Consider Japanese chart titles and labels
-
-Chart elements:
-{sample_elements}
-
-Respond in JSON format:
-{{
-    "chartType": string,
-    "purpose": string,
-    "dataRelations": [string],
-    "suggestedUsage": string,
-    "confidence": number
-}}
-"""
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[{
-                    "role": "user",
-                    "content": prompt
-                }],
-                response_format={"type": "json_object"},
-                max_tokens=1000)
-            return response.choices[0].message.content
-        except Exception as e:
-            print(f"Error in analyze_chart: {str(e)}")
-            return json.dumps({
-                "chartType": "unknown",
-                "purpose": "Error in analysis",
-                "dataRelations": [],
-                "suggestedUsage": "Error in analysis",
-                "confidence": 0
-            })
-
     def generate_sheet_summary(self, sheet_data: Dict[str, Any]) -> str:
         """Generate a summary for an entire sheet using LLM with region summaries already available."""
         try:
             regions = sheet_data.get('regions', [])
             region_summaries = []
-            
+
             for region in regions:
                 if "summary" in region:
                     region_type = region.get("regionType", "unknown")
@@ -341,49 +213,8 @@ Respond in JSON format:
                     "content": prompt
                 }],
                 max_tokens=1000)
-            
+
             return response.choices[0].message.content
         except Exception as e:
             print(f"Error generating sheet summary: {str(e)}")
             return "シートのサマリー生成に失敗しました"
-
-    def analyze_merged_cells(self, merged_cells_data: str) -> Dict[str, Any]:
-        """Analyze merged cells pattern using LLM with size limits"""
-        sample_data = merged_cells_data[:1000]
-
-        prompt = f"""Analyze the following merged cells pattern:
-1. Purpose of merging (見出し, グループ化, 整形など)
-2. Structural implications
-3. Consider Japanese organizational patterns
-
-Merged cells data:
-{sample_data}
-
-Respond in JSON format:
-{{
-    "pattern": string,
-    "purpose": string,
-    "structureType": "header" or "grouping" or "formatting" or "other",
-    "implications": [string],
-    "confidence": number
-}}
-"""
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[{
-                    "role": "user",
-                    "content": prompt
-                }],
-                response_format={"type": "json_object"},
-                max_tokens=1000)
-            return response.choices[0].message.content
-        except Exception as e:
-            print(f"Error in analyze_merged_cells: {str(e)}")
-            return json.dumps({
-                "pattern": "unknown",
-                "purpose": "Error in analysis",
-                "structureType": "other",
-                "implications": [],
-                "confidence": 0
-            })
