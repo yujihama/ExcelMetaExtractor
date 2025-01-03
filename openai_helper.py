@@ -18,13 +18,13 @@ class OpenAIHelper:
                 # テーブル用のサマリー生成
                 cells = region.get("sampleCells", [])
                 header_structure = region.get("headerStructure", {})
-                prompt = f"""以下のExcelテーブル領域の内容を簡潔に要約してください:
+                prompt = f"""以下のExcelテーブル領域が何について記載されているか簡潔に説明してください:
                 ヘッダー構造: {json.loads(header_structure, ensure_ascii=False)}
                 データサンプル: {json.loads(cells[:2], ensure_ascii=False)}
                 """
             else:
                 # その他の領域用のサマリー生成
-                prompt = f"""以下のExcel領域の内容を簡潔に要約してください:
+                prompt = f"""以下のExcel領域が何について記載されているか簡潔に説明してください:
                 領域タイプ: {region["regionType"]}
                 範囲: {region["range"]}
                 内容: {json.loads(region, ensure_ascii=False)[:200]}
@@ -310,24 +310,41 @@ Respond in JSON format:
             })
 
     def generate_sheet_summary(self, sheet_data: Dict[str, Any]) -> str:
-        """Generate a summary for an entire sheet using LLM"""
+        """Generate a summary for an entire sheet using LLM with region summaries already available."""
         try:
-            prompt = f"""以下のExcelシートの情報を簡潔に要約してください:
+            regions_summary = sheet_data.get('regions_summary', [])
+            prompt = f"""以下のExcelシートには何が記載されているか簡潔に説明してください:
 シート名: {sheet_data.get('sheetName', '')}
-検出された領域数: {len(sheet_data.get('regions', []))}
-データサンプル:
-{json.dumps(sheet_data.get('regions', [])[:3], ensure_ascii=False, indent=2)}
+検出された領域数: {len(regions_summary)}
+各領域のサマリ:
+{json.loads(regions_summary, ensure_ascii=False, indent=2)}
 
 以下の点に注目して要約してください:
 - シートの主な目的や内容
 - 含まれる主要なテーブルや図形
 - データの構造的特徴
 """
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=300)
-            
+            response = self.client.chat.completions.create(model=self.model,
+                                                           messages=[{
+                                                               "role":
+                                                               "user",
+                                                               "content":
+                                                               prompt
+                                                           }],
+                                                           max_tokens=1000)
+            return response.choices[0].message.content
+        except Exception as e:
+            print(f"Error generating sheet summary: {str(e)}")
+            return "シートのサマリー生成に失敗しました"
+            response = self.client.chat.completions.create(model=self.model,
+                                                           messages=[{
+                                                               "role":
+                                                               "user",
+                                                               "content":
+                                                               prompt
+                                                           }],
+                                                           max_tokens=1000)
+
             return response.choices[0].message.content
         except Exception as e:
             print(f"Error generating sheet summary: {str(e)}")
