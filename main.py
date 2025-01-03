@@ -209,11 +209,18 @@ def main():
                         try:
                             # サマリー情報を含むメタデータ領域の場合
                             if region.get("type") == "metadata":
-                                with st.expander("📊 Region Summary"):
-                                    st.markdown("### Summary Information")
-                                    st.write(f"Total Regions: {region.get('totalRegions', 0)}")
-                                    st.write(f"Drawing Regions: {region.get('drawingRegions', 0)}")
-                                    st.write(f"Cell Regions: {region.get('cellRegions', 0)}")
+                                st.markdown("##### 📊 Sheet Summary")
+                                with st.expander("Summary Information"):
+
+                                    st.write(
+                                        f"Total Regions: {region.get('totalRegions', 0)}"
+                                    )
+                                    st.write(
+                                        f"Drawing Regions: {region.get('drawingRegions', 0)}"
+                                    )
+                                    st.write(
+                                        f"Cell Regions: {region.get('cellRegions', 0)}"
+                                    )
                                     if "summary" in region:
                                         st.write("Summary:", region["summary"])
                             else:
