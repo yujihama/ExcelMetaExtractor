@@ -27,10 +27,6 @@ class OpenAIHelper:
                 prompt = f"""以下のExcel領域が何について記載されているか簡潔に説明してください:
                 領域タイプ: {region["regionType"]}
                 範囲: {region["range"]}
-                内容: {json.dumps(region, ensure_ascii=False)}
-                """か簡潔に説明してください:
-                領域タイプ: {region["regionType"]}
-                範囲: {region["range"]}
                 内容: {json.loads(region, ensure_ascii=False)[:200]}
                 """
 
