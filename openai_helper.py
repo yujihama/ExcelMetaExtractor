@@ -68,7 +68,7 @@ Region sample data (first few rows/cells):
 {json.dumps(sample_data, indent=2)}
 
 Consider Japanese text patterns like:
-- Table titles (〇〇一覧, △△表, □□リスト)
+- Table titles (一覧表, 集計表, リスト)
 - Section headings (大項目, 中項目, 小項目)
 - Data categories (区分, 分類, 種別)
 
