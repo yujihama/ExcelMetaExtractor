@@ -329,6 +329,9 @@ class ExcelMetadataExtractor:
         return chart_data_list
 
     def recreate_charts(self, chart_data_list, output_dir):
+        # 日本語フォントの設定
+        plt.rcParams['font.family'] = 'IPAGothic'
+        
         for i, chart_data in enumerate(chart_data_list):
             fig, ax = plt.subplots()
 
