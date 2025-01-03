@@ -407,9 +407,21 @@ class ExcelMetadataExtractor:
                         chart = anchor.find('.//c:chart', self.ns)
                         if chart is not None:
                             chart_ref = chart.get(f'{{{self.ns["r"]}}}id')
+                            # Create temp directory for chart images
+                            output_dir = os.path.join(tempfile.gettempdir(), 'chart_images')
+                            os.makedirs(output_dir, exist_ok=True)
+                            
+                            # Extract chart data and recreate charts
+                            chart_data_list = self.extract_chart_data(self.file_obj.name, output_dir)
+                            self.recreate_charts(chart_data_list, output_dir)
+                            
+                            # Get image path for current chart
+                            image_path = f"{output_dir}/recreated_chart_{chart_ref_num}.png"
+                            
                             chart_info = {
                                 "type": "chart",
-                                "chart_ref": chart_ref
+                                "chart_ref": chart_ref,
+                                "image_path": image_path if os.path.exists(image_path) else None
                             }
 
                             # チャートデータの取得

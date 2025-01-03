@@ -97,6 +97,11 @@ def display_region_info(region):
                         if 'data_range' in series:
                             st.markdown(
                                 f"  Data Range: {series['data_range']}")
+                
+                # Display chart image if available
+                if 'image_path' in region and region['image_path']:
+                    st.markdown("#### Chart Visualization")
+                    st.image(region['image_path'])
 
         elif region['regionType'] == 'table':
             st.markdown("### Table Information")
