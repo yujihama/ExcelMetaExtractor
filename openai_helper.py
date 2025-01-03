@@ -312,39 +312,36 @@ Respond in JSON format:
     def generate_sheet_summary(self, sheet_data: Dict[str, Any]) -> str:
         """Generate a summary for an entire sheet using LLM with region summaries already available."""
         try:
-            regions_summary = sheet_data.get('regions_summary', [])
+            regions = sheet_data.get('regions', [])
+            region_summaries = []
+            
+            for region in regions:
+                if "summary" in region:
+                    region_type = region.get("regionType", "unknown")
+                    region_range = region.get("range", "")
+                    summary = region.get("summary", "")
+                    region_summaries.append(f"{region_type} ({region_range}): {summary}")
+
             prompt = f"""以下のExcelシートには何が記載されているか簡潔に説明してください:
 シート名: {sheet_data.get('sheetName', '')}
-検出された領域数: {len(regions_summary)}
-各領域のサマリ:
-{json.loads(regions_summary, ensure_ascii=False, indent=2)}
+検出された領域数: {len(regions)}
+
+各領域の要約:
+{chr(10).join(region_summaries)}
 
 以下の点に注目して要約してください:
 - シートの主な目的や内容
 - 含まれる主要なテーブルや図形
 - データの構造的特徴
 """
-            response = self.client.chat.completions.create(model=self.model,
-                                                           messages=[{
-                                                               "role":
-                                                               "user",
-                                                               "content":
-                                                               prompt
-                                                           }],
-                                                           max_tokens=1000)
-            return response.choices[0].message.content
-        except Exception as e:
-            print(f"Error generating sheet summary: {str(e)}")
-            return "シートのサマリー生成に失敗しました"
-            response = self.client.chat.completions.create(model=self.model,
-                                                           messages=[{
-                                                               "role":
-                                                               "user",
-                                                               "content":
-                                                               prompt
-                                                           }],
-                                                           max_tokens=1000)
-
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{
+                    "role": "user",
+                    "content": prompt
+                }],
+                max_tokens=1000)
+            
             return response.choices[0].message.content
         except Exception as e:
             print(f"Error generating sheet summary: {str(e)}")
