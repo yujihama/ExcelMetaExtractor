@@ -867,32 +867,8 @@ class ExcelMetadataExtractor:
         """Extract cell information from a region with limits"""
         cells_data = []
         # ヘッダー行を分析
-        sample_data = []
-        for row in range(start_row, min(start_row + 5, max_row + 1)):
-            row_data = []
-            for col in range(start_col, min(start_col + 10, max_col + 1)):
-                cell = sheet.cell(row=row, column=col)
-                row_data.append({
-                    "row": row,
-                    "col": col,
-                    "value": str(cell.value) if cell.value is not None else "",
-                    "type": self.analyze_cell_type(cell)
-                })
-            sample_data.append(row_data)
-            
-        # ヘッダー構造を分析
-        header_analysis = self.openai_helper.analyze_table_structure(
-            json.dumps({"cells": sample_data}, ensure_ascii=False), [])
-        header_struct = json.loads(header_analysis)
-        header_rows = header_struct.get("headerStructure", {}).get("rows", [])
-
-        # ヘッダー行とデータ4行のみを取得
-        if header_rows:
-            header_max = max(header_rows)
-            data_rows = 4
-            actual_max_row = min(max_row, header_max + data_rows)
-        else:
-            actual_max_row = min(max_row, 5)  # ヘッダーが不明な場合は最初の5行
+        # 最初の5行と必要な列を取得
+        actual_max_row = min(max_row, start_row + 5)  # 最初の5行を取得
         actual_max_col = max_col
 
         # actual_max_row = min(
