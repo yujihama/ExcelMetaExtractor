@@ -411,8 +411,12 @@ class ExcelMetadataExtractor:
                             output_dir = os.path.join(tempfile.gettempdir(), 'chart_images')
                             os.makedirs(output_dir, exist_ok=True)
                             
-                            # Extract chart data and recreate charts
-                            chart_data_list = self.extract_chart_data(self.file_obj.name, output_dir)
+                            # Create temporary file and extract chart data
+                            with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as temp_file:
+                                self.file_obj.seek(0)
+                                temp_file.write(self.file_obj.read())
+                                temp_file_path = temp_file.name
+                            chart_data_list = self.extract_chart_data(temp_file_path, output_dir)
                             self.recreate_charts(chart_data_list, output_dir)
                             
                             # Get image path for current chart
