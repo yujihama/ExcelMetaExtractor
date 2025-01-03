@@ -22,12 +22,13 @@ class OpenAIHelper:
                 ヘッダー構造: {json.dumps(header_structure, ensure_ascii=False)}
                 データサンプル: {json.dumps(cells[:2], ensure_ascii=False)}
                 """
-            elif region["regionType"] == "table":
+            elif region["regionType"] == "chart":
+                
                 # チャート用のサマリー生成
                 prompt = f"""以下のグラフが何について記載されているか簡潔に説明してください:
                 グラフタイプ: {region["chartType"]}
                 データ範囲: {region["series"][0]["data_range"]}
-                内容: {json.dumps(region, ensure_ascii=False)[:200]}
+                内容: {region["chart_data_json"]}
                 """
             else:
                 # その他の領域用のサマリー生成
@@ -199,7 +200,8 @@ Respond in JSON format:
                     region_type = region.get("regionType", "unknown")
                     region_range = region.get("range", "")
                     summary = region.get("summary", "")
-                    region_summaries.append(f"{region_type} ({region_range}): {summary}")
+                    region_summaries.append(
+                        f"{region_type} ({region_range}): {summary}")
 
             prompt = f"""以下のExcelシートには何が記載されているか簡潔に説明してください:
 シート名: {sheet_data.get('sheetName', '')}
@@ -213,13 +215,14 @@ Respond in JSON format:
 - 含まれる主要なテーブルや図形
 - データの構造的特徴
 """
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[{
-                    "role": "user",
-                    "content": prompt
-                }],
-                max_tokens=1000)
+            response = self.client.chat.completions.create(model=self.model,
+                                                           messages=[{
+                                                               "role":
+                                                               "user",
+                                                               "content":
+                                                               prompt
+                                                           }],
+                                                           max_tokens=1000)
 
             return response.choices[0].message.content
         except Exception as e:

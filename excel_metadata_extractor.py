@@ -252,13 +252,7 @@ class ExcelMetadataExtractor:
                                 max_row=int(max_row))
 
                             data = []
-                            # for row_tuple in sheet.iter_rows(
-                            #         min_col=values.min_col,
-                            #         min_row=values.min_row,
-                            #         max_col=values.max_col,
-                            #         max_row=values.max_row):
-                            #     row_data = [cell.value for cell in row_tuple]
-                            #     data.extend(row_data)
+
                             for row_tuple in sheet.iter_rows(
                                     min_col=values.min_col,
                                     min_row=values.min_row,
@@ -330,36 +324,42 @@ class ExcelMetadataExtractor:
 
     def recreate_charts(self, chart_data_list, output_dir):
         # 日本語フォントの設定
-        plt.rcParams['font.family'] = 'IPAGothic'
-        
+        # plt.rcParams['font.family'] = 'IPAGothic'
+        output_data = []  # JSON出力用のリスト
+
         for i, chart_data in enumerate(chart_data_list):
             fig, ax = plt.subplots()
+            chart_info = {"chart_type": chart_data["type"]}  # chart_typeを追加
 
             if chart_data["type"] == "BarChart":
-                print(chart_data["data"])
-
                 if len(chart_data["data"]) > 1:
-                    # 複数系列の積み上げ棒グラフを想定 (必要に応じてグループ化棒グラフに変更)
-                    import numpy as np
-                    width = 0.35
                     x = np.arange(len(chart_data["categories"][0]))
-
                     bottom = np.zeros(len(chart_data["categories"][0]))
+                    chart_data_y = []
                     for j, data in enumerate(chart_data["data"]):
                         ax.bar(x,
                                data,
-                               width,
+                               width=0.35,
                                label=f'Series {j+1}',
                                bottom=bottom)
                         bottom += np.array(data)
+                        chart_data_y.append(data)
+                    chart_info["x"] = chart_data["categories"][0]
+                    chart_info["y"] = chart_data_y
                 else:
                     ax.bar(chart_data["categories"][0], chart_data["data"][0])
+                    chart_info["x"] = chart_data["categories"][0]
+                    chart_info["y"] = chart_data["data"][0]
             elif chart_data["type"] == "LineChart":
+                chart_data_y = []
                 for j, data in enumerate(chart_data["data"]):
                     ax.plot(chart_data["categories"][0],
                             data,
                             marker='o',
                             label=f'Series {j+1}')
+                    chart_data_y.append(data)
+                chart_info["x"] = chart_data["categories"][0]
+                chart_info["y"] = chart_data_y
             elif chart_data["type"] == "PieChart":
                 if len(chart_data["data"][0]) == len(
                         chart_data["categories"][0]):
@@ -368,34 +368,51 @@ class ExcelMetadataExtractor:
                            autopct='%1.1f%%',
                            startangle=140)
                     ax.axis('equal')
+                    chart_info["labels"] = chart_data["categories"][0]
+                    chart_info["data"] = chart_data["data"][0]
                 else:
                     print(
                         f"Skipping PieChart: Data and categories length mismatch in chart {i+1}"
                     )
+                    continue
             elif chart_data["type"] == "ScatterChart":
+                chart_data_y = []
                 for j, data in enumerate(chart_data["data"]):
                     ax.scatter(chart_data["categories"][0],
                                data,
                                label=f'Series {j+1}')
+                    chart_data_y.append(data)
+                chart_info["x"] = chart_data["categories"][0]
+                chart_info["y"] = chart_data_y
             else:
                 print(
                     f"Unsupported chart type: {chart_data['type']} in chart {i+1}"
                 )
                 continue
 
-            ax.set_title(chart_data["title"])
-            ax.set_xlabel(chart_data["x_axis_title"])
-            ax.set_ylabel(chart_data["y_axis_title"])
+            # ax.set_title(chart_data["title"])
+            # ax.set_xlabel(chart_data["x_axis_title"])
+            # ax.set_ylabel(chart_data["y_axis_title"])
 
             # 凡例を表示（データがある場合のみ）
-            if len(chart_data["data"]) > 0:
-                ax.legend()
+            # if len(chart_data["data"]) > 0:
+            #     ax.legend()
 
-            # 画像として保存
-            output_filename = f"recreated_chart_{i+1}.png"
-            plt.savefig(output_filename)
-            plt.close(fig)
-            print(f"Recreated chart saved to: {output_filename}")
+            # # 画像として保存
+            # output_filename = f"recreated_chart_{i+1}.png"
+            # plt.savefig(output_filename)
+            # plt.close(fig)
+            # print(f"Recreated chart saved to: {output_filename}")
+
+            output_data.append(chart_info)  # JSON出力用リストに追加
+
+        # JSON形式で出力
+        # with open("chart_data.json", "w", encoding="utf-8") as f:
+        #     json.dump(output_data, f, ensure_ascii=False, indent=4)
+
+        print("Chart data saved to chart_data.json")
+
+        return output_data
 
     def extract_drawing_info(self, sheet, excel_zip,
                              drawing_path) -> List[Dict[str, Any]]:
@@ -535,20 +552,13 @@ class ExcelMetadataExtractor:
                                 temp_file_path = temp_file.name
                             chart_data_list = self.extract_chart_data(
                                 temp_file_path, output_dir)
-                            print("debug1")
-                            self.recreate_charts(chart_data_list, output_dir)
-
-                            # Get image path for current chart
-                            image_path = "recreated_chart_1.png"
+                            chart_data_json = self.recreate_charts(
+                                chart_data_list, output_dir)
 
                             chart_info = {
-                                "type":
-                                "chart",
-                                "chart_ref":
-                                chart_ref,
-                                "image_path":
-                                image_path
-                                if os.path.exists(image_path) else None
+                                "type": "chart",
+                                "chart_ref": chart_ref,
+                                "chart_data_json": chart_data_json
                             }
 
                             # チャートデータの取得
@@ -556,12 +566,9 @@ class ExcelMetadataExtractor:
                                 chart_ref_num = re.search(
                                     r'rId(\d+)', chart_ref).group(1)
                                 chart_xml_path = f'xl/charts/chart{chart_ref_num}.xml'
-                                st.write(
-                                    f"Extracting chart data from {chart_xml_path}"
-                                )
+
                                 if chart_xml_path in excel_zip.namelist():
-                                    st.write(
-                                        f"Found chart data: {chart_xml_path}")
+
                                     with excel_zip.open(
                                             chart_xml_path) as chart_xml_file:
                                         chart_tree = ET.parse(chart_xml_file)
@@ -571,9 +578,7 @@ class ExcelMetadataExtractor:
                                         chart_type = None
                                         for elem in chart_root.findall(
                                                 './/c:plotArea/*', self.ns):
-                                            st.write(
-                                                f"Finding Chart type: {elem.tag}"
-                                            )
+
                                             if elem.tag.endswith('barChart'):
                                                 chart_type = 'bar'
                                             elif elem.tag.endswith('pieChart'):
@@ -602,9 +607,7 @@ class ExcelMetadataExtractor:
 
                                             series_name = series.find(
                                                 './/c:tx//c:f', self.ns)
-                                            st.write(
-                                                f"Extracting series data:{series_name}"
-                                            )
+
                                             if series_name is not None:
                                                 series_info = {
                                                     "name": series_name.text
@@ -622,8 +625,6 @@ class ExcelMetadataExtractor:
 
                                         if series_list:
                                             chart_info["series"] = series_list
-
-                                        st.write(chart_info)
 
                             except Exception as e:
                                 print(f"Error extracting chart data: {str(e)}")
@@ -875,16 +876,26 @@ class ExcelMetadataExtractor:
                             drawing_type = drawing[
                                 "type"]  # "image", "shape", "smartart", "chart"
                             region_info = {
-                                "regionType": drawing_type,
-                                "type": drawing_type,
-                                "range": drawing["range"],
-                                "name": drawing.get("name", ""),
-                                "description": drawing.get("description", ""),
-                                "coordinates": drawing["coordinates"],
+                                "regionType":
+                                drawing_type,
+                                "type":
+                                drawing_type,
+                                "range":
+                                drawing["range"],
+                                "name":
+                                drawing.get("name", ""),
+                                "description":
+                                drawing.get("description", ""),
+                                "coordinates":
+                                drawing["coordinates"],
                                 "text_content":
                                 drawing.get("text_content", ""),
-                                "chartType": drawing.get("chartType", ""),
-                                "series": drawing.get("series", "")
+                                "chartType":
+                                drawing.get("chartType", ""),
+                                "series":
+                                drawing.get("series", ""),
+                                "chart_data_json":
+                                drawing.get("chart_data_json", "")
                             }
 
                             # 図形タイプ別の追加情報

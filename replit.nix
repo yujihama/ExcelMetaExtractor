@@ -12,7 +12,7 @@
     pkgs.ffmpeg-full
     pkgs.cairo
     pkgs.glibcLocales
-    pkgs.font-ipa
-    pkgs.fontconfig
+    # pkgs.font-ipa
+    # pkgs.fontconfig
   ];
 }
