@@ -149,92 +149,120 @@ class ExcelMetadataExtractor:
         return sheet_drawing_map
 
     def extract_chart_data(self, filepath, output_dir):
-        workbook = load_workbook(filepath, data_only=True) # data_only=True でセルの値を読み込む
+        workbook = load_workbook(filepath,
+                                 data_only=True)  # data_only=True でセルの値を読み込む
         chart_data_list = []
 
         for sheetname in workbook.sheetnames:
             sheet = workbook[sheetname]
-            for chart in sheet._charts:
+            for chart_index, chart in enumerate(sheet._charts):
+                # タイトル、軸ラベル取得処理を修正
+                title = "Untitled"  # デフォルトタイトル
+                if chart.title:
+                    if isinstance(chart.title, str):
+                        title = chart.title
+                    elif hasattr(chart.title, 'tx') and chart.title.tx:
+                        if hasattr(chart.title.tx,
+                                   'rich') and chart.title.tx.rich:
+                            title = chart.title.tx.rich.p[0].r.t if len(
+                                chart.title.tx.rich.p
+                            ) > 0 and chart.title.tx.rich.p[0].r else "Untitled"
+                        elif hasattr(chart.title.tx,
+                                     'strRef') and chart.title.tx.strRef:
+                            # タイトルが数式で参照されている場合は、数式を取得
+                            title = chart.title.tx.strRef.f
+
+                x_axis_title = None
+                if chart.x_axis and chart.x_axis.title:
+                    if isinstance(chart.x_axis.title, str):
+                        x_axis_title = chart.x_axis.title
+                    elif hasattr(chart.x_axis.title,
+                                 'tx') and chart.x_axis.title.tx:
+                        if hasattr(chart.x_axis.title.tx,
+                                   'rich') and chart.x_axis.title.tx.rich:
+                            x_axis_title = chart.x_axis.title.tx.rich.p[
+                                0].r.t if len(
+                                    chart.x_axis.title.tx.rich.p
+                                ) > 0 and chart.x_axis.title.tx.rich.p[
+                                    0].r else None
+                        elif hasattr(
+                                chart.x_axis.title.tx,
+                                'strRef') and chart.x_axis.title.tx.strRef:
+                            x_axis_title = chart.x_axis.title.tx.strRef.f
+
+                y_axis_title = None
+                if chart.y_axis and chart.y_axis.title:
+                    if isinstance(chart.y_axis.title, str):
+                        y_axis_title = chart.y_axis.title
+                    elif hasattr(chart.y_axis.title,
+                                 'tx') and chart.y_axis.title.tx:
+                        if hasattr(chart.y_axis.title.tx,
+                                   'rich') and chart.y_axis.title.tx.rich:
+                            y_axis_title = chart.y_axis.title.tx.rich.p[
+                                0].r.t if len(
+                                    chart.y_axis.title.tx.rich.p
+                                ) > 0 and chart.y_axis.title.tx.rich.p[
+                                    0].r else None
+                        elif hasattr(
+                                chart.y_axis.title.tx,
+                                'strRef') and chart.y_axis.title.tx.strRef:
+                            y_axis_title = chart.y_axis.title.tx.strRef.f
+
                 chart_data = {
                     "sheetname": sheetname,
-                    "title": chart.title.tx.rich.p[0].r.t if chart.title else "Untitled",
+                    "title": title,
                     "type": type(chart).__name__,
                     "data": [],
                     "categories": [],
-                    "x_axis_title": chart.x_axis.title.tx.rich.p[0].r.t if chart.x_axis.title else None,
-                    "y_axis_title": chart.y_axis.title.tx.rich.p[0].r.t if chart.y_axis.title else None,
-                    # openpyxl では色の取得が難しいため、一旦 None にする
-                    "series_colors": [], 
+                    "x_axis_title": x_axis_title,
+                    "y_axis_title": y_axis_title,
+                    "series_colors": [],
                 }
 
-                if isinstance(chart, (BarChart, LineChart, PieChart, ScatterChart)): # 主なチャートタイプに対応
+                if isinstance(chart,
+                              (BarChart, LineChart, PieChart, ScatterChart)):
                     for series in chart.series:
-                        chart_data["series_colors"].append(None) # 色情報をプレースホルダーとして追加
-                        # データの取得
-                        if series.val.numRef:
-                           values = Reference(sheet, min_col=series.val.numRef.f.split('!')[1].split(':')[0][1:],
-                                            min_row=int(series.val.numRef.f.split('!')[1].split(':')[0][0:]),
-                                            max_row=int(series.val.numRef.f.split('!')[1].split(':')[1][0:]))
-                           data = [cell.value for row in sheet[values.rows] for cell in row]
-                           chart_data["data"].append(data)
+                        chart_data["series_colors"].append(None)
 
-                        # カテゴリ（X軸ラベル）の取得
+                        if series.val.numRef:
+                            values = Reference(
+                                sheet,
+                                min_col=int(
+                                    series.val.numRef.f.split('!')[1].split(
+                                        ':')[0][1:]),
+                                min_row=int(
+                                    series.val.numRef.f.split('!')[1].split(
+                                        ':')[0][0:]),
+                                max_row=int(
+                                    series.val.numRef.f.split('!')[1].split(
+                                        ':')[1][0:]))
+                            data = [
+                                cell.value for row in sheet[values.rows]
+                                for cell in row
+                            ]
+                            chart_data["data"].append(data)
+
                         if series.cat.numRef:
-                           categories = Reference(sheet, min_col=series.cat.numRef.f.split('!')[1].split(':')[0][1:],
-                                                min_row=int(series.cat.numRef.f.split('!')[1].split(':')[0][0:]),
-                                                max_row=int(series.cat.numRef.f.split('!')[1].split(':')[1][0:]))
-                           category_labels = [cell.value for row in sheet[categories.rows] for cell in row]
-                           chart_data["categories"].append(category_labels)
+                            categories = Reference(
+                                sheet,
+                                min_col=int(
+                                    series.cat.numRef.f.split('!')[1].split(
+                                        ':')[0][1:]),
+                                min_row=int(
+                                    series.cat.numRef.f.split('!')[1].split(
+                                        ':')[0][0:]),
+                                max_row=int(
+                                    series.cat.numRef.f.split('!')[1].split(
+                                        ':')[1][0:]))
+                            category_labels = [
+                                cell.value for row in sheet[categories.rows]
+                                for cell in row
+                            ]
+                            chart_data["categories"].append(category_labels)
 
                 chart_data_list.append(chart_data)
 
         return chart_data_list
-
-    def recreate_charts(chart_data_list, output_dir):
-        for i, chart_data in enumerate(chart_data_list):
-            fig, ax = plt.subplots()
-
-            if chart_data["type"] == "BarChart":
-                if len(chart_data["data"]) > 1:
-                    # 複数系列の積み上げ棒グラフを想定 (必要に応じてグループ化棒グラフに変更)
-                    import numpy as np
-                    width = 0.35
-                    x = np.arange(len(chart_data["categories"][0]))
-                    bottom = np.zeros(len(chart_data["categories"][0]))
-                    for j, data in enumerate(chart_data["data"]):
-                        ax.bar(x, data, width, label=f'Series {j+1}', bottom=bottom)
-                        bottom += np.array(data)
-                else:
-                    ax.bar(chart_data["categories"][0], chart_data["data"][0])
-            elif chart_data["type"] == "LineChart":
-                for j, data in enumerate(chart_data["data"]):
-                    ax.plot(chart_data["categories"][0], data, marker='o', label=f'Series {j+1}')
-            elif chart_data["type"] == "PieChart":
-                if len(chart_data["data"][0]) == len(chart_data["categories"][0]):
-                    ax.pie(chart_data["data"][0], labels=chart_data["categories"][0], autopct='%1.1f%%', startangle=140)
-                    ax.axis('equal')
-                else:
-                    print(f"Skipping PieChart: Data and categories length mismatch in chart {i+1}")
-            elif chart_data["type"] == "ScatterChart":
-                for j, data in enumerate(chart_data["data"]):
-                    ax.scatter(chart_data["categories"][0], data, label=f'Series {j+1}')
-            else:
-                print(f"Unsupported chart type: {chart_data['type']} in chart {i+1}")
-                continue
-
-            ax.set_title(chart_data["title"])
-            ax.set_xlabel(chart_data["x_axis_title"])
-            ax.set_ylabel(chart_data["y_axis_title"])
-
-            # 凡例を表示（データがある場合のみ）
-            if len(chart_data["data"]) > 0:
-              ax.legend()
-
-            # 画像として保存
-            output_filename = f"{output_dir}/recreated_chart_{i+1}.png"
-            plt.savefig(output_filename)
-            plt.close(fig)
-            print(f"Recreated chart saved to: {output_filename}")
 
     def recreate_charts(self, chart_data_list, output_dir):
         for i, chart_data in enumerate(chart_data_list):
@@ -248,24 +276,41 @@ class ExcelMetadataExtractor:
                     x = np.arange(len(chart_data["categories"][0]))
                     bottom = np.zeros(len(chart_data["categories"][0]))
                     for j, data in enumerate(chart_data["data"]):
-                        ax.bar(x, data, width, label=f'Series {j+1}', bottom=bottom)
+                        ax.bar(x,
+                               data,
+                               width,
+                               label=f'Series {j+1}',
+                               bottom=bottom)
                         bottom += np.array(data)
                 else:
                     ax.bar(chart_data["categories"][0], chart_data["data"][0])
             elif chart_data["type"] == "LineChart":
                 for j, data in enumerate(chart_data["data"]):
-                    ax.plot(chart_data["categories"][0], data, marker='o', label=f'Series {j+1}')
+                    ax.plot(chart_data["categories"][0],
+                            data,
+                            marker='o',
+                            label=f'Series {j+1}')
             elif chart_data["type"] == "PieChart":
-                if len(chart_data["data"][0]) == len(chart_data["categories"][0]):
-                    ax.pie(chart_data["data"][0], labels=chart_data["categories"][0], autopct='%1.1f%%', startangle=140)
+                if len(chart_data["data"][0]) == len(
+                        chart_data["categories"][0]):
+                    ax.pie(chart_data["data"][0],
+                           labels=chart_data["categories"][0],
+                           autopct='%1.1f%%',
+                           startangle=140)
                     ax.axis('equal')
                 else:
-                    print(f"Skipping PieChart: Data and categories length mismatch in chart {i+1}")
+                    print(
+                        f"Skipping PieChart: Data and categories length mismatch in chart {i+1}"
+                    )
             elif chart_data["type"] == "ScatterChart":
                 for j, data in enumerate(chart_data["data"]):
-                    ax.scatter(chart_data["categories"][0], data, label=f'Series {j+1}')
+                    ax.scatter(chart_data["categories"][0],
+                               data,
+                               label=f'Series {j+1}')
             else:
-                print(f"Unsupported chart type: {chart_data['type']} in chart {i+1}")
+                print(
+                    f"Unsupported chart type: {chart_data['type']} in chart {i+1}"
+                )
                 continue
 
             ax.set_title(chart_data["title"])
@@ -274,14 +319,14 @@ class ExcelMetadataExtractor:
 
             # 凡例を表示（データがある場合のみ）
             if len(chart_data["data"]) > 0:
-              ax.legend()
+                ax.legend()
 
             # 画像として保存
             output_filename = f"{output_dir}/recreated_chart_{i+1}.png"
             plt.savefig(output_filename)
             plt.close(fig)
             print(f"Recreated chart saved to: {output_filename}")
-    
+
     def extract_drawing_info(self, sheet, excel_zip,
                              drawing_path) -> List[Dict[str, Any]]:
         """Extract information about images and shapes from drawing.xml"""
@@ -408,24 +453,31 @@ class ExcelMetadataExtractor:
                         if chart is not None:
                             chart_ref = chart.get(f'{{{self.ns["r"]}}}id')
                             # Create temp directory for chart images
-                            output_dir = os.path.join(tempfile.gettempdir(), 'chart_images')
+                            output_dir = os.path.join(tempfile.gettempdir(),
+                                                      'chart_images')
                             os.makedirs(output_dir, exist_ok=True)
-                            
+
                             # Create temporary file and extract chart data
-                            with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as temp_file:
+                            with tempfile.NamedTemporaryFile(
+                                    suffix='.xlsx', delete=False) as temp_file:
                                 self.file_obj.seek(0)
                                 temp_file.write(self.file_obj.read())
                                 temp_file_path = temp_file.name
-                            chart_data_list = self.extract_chart_data(temp_file_path, output_dir)
+                            chart_data_list = self.extract_chart_data(
+                                temp_file_path, output_dir)
                             self.recreate_charts(chart_data_list, output_dir)
-                            
+
                             # Get image path for current chart
                             image_path = f"{output_dir}/recreated_chart_{chart_ref_num}.png"
-                            
+
                             chart_info = {
-                                "type": "chart",
-                                "chart_ref": chart_ref,
-                                "image_path": image_path if os.path.exists(image_path) else None
+                                "type":
+                                "chart",
+                                "chart_ref":
+                                chart_ref,
+                                "image_path":
+                                image_path
+                                if os.path.exists(image_path) else None
                             }
 
                             # チャートデータの取得
