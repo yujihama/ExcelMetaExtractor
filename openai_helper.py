@@ -19,12 +19,16 @@ class OpenAIHelper:
                 cells = region.get("sampleCells", [])
                 header_structure = region.get("headerStructure", {})
                 prompt = f"""以下のExcelテーブル領域が何について記載されているか簡潔に説明してください:
-                ヘッダー構造: {json.loads(header_structure, ensure_ascii=False)}
-                データサンプル: {json.loads(cells[:2], ensure_ascii=False)}
+                ヘッダー構造: {json.dumps(header_structure, ensure_ascii=False)}
+                データサンプル: {json.dumps(cells[:2], ensure_ascii=False)}
                 """
             else:
                 # その他の領域用のサマリー生成
                 prompt = f"""以下のExcel領域が何について記載されているか簡潔に説明してください:
+                領域タイプ: {region["regionType"]}
+                範囲: {region["range"]}
+                内容: {json.dumps(region, ensure_ascii=False)}
+                """か簡潔に説明してください:
                 領域タイプ: {region["regionType"]}
                 範囲: {region["range"]}
                 内容: {json.loads(region, ensure_ascii=False)[:200]}
