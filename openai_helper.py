@@ -309,6 +309,30 @@ Respond in JSON format:
                 "confidence": 0
             })
 
+    def generate_sheet_summary(self, sheet_data: Dict[str, Any]) -> str:
+        """Generate a summary for an entire sheet using LLM"""
+        try:
+            prompt = f"""以下のExcelシートの情報を簡潔に要約してください:
+シート名: {sheet_data.get('sheetName', '')}
+検出された領域数: {len(sheet_data.get('regions', []))}
+データサンプル:
+{json.dumps(sheet_data.get('regions', [])[:3], ensure_ascii=False, indent=2)}
+
+以下の点に注目して要約してください:
+- シートの主な目的や内容
+- 含まれる主要なテーブルや図形
+- データの構造的特徴
+"""
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=300)
+            
+            return response.choices[0].message.content
+        except Exception as e:
+            print(f"Error generating sheet summary: {str(e)}")
+            return "シートのサマリー生成に失敗しました"
+
     def analyze_merged_cells(self, merged_cells_data: str) -> Dict[str, Any]:
         """Analyze merged cells pattern using LLM with size limits"""
         sample_data = merged_cells_data[:1000]
