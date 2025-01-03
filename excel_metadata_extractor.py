@@ -977,7 +977,6 @@ class ExcelMetadataExtractor:
                         "regionType": region_type,
                         "range":
                         f"{get_column_letter(col)}{row}:{get_column_letter(max_col)}{max_row}",
-                        "sampleCells": cells_data,
                         "mergedCells": merged_cells
                     }
 
