@@ -727,8 +727,15 @@ class ExcelMetadataExtractor:
                     "drawingRegions": len(drawing_regions),
                     "cellRegions": len(cell_regions)
                 }
-                # メタデータ領域のサマリーを生成
-                metadata["summary"] = f"合計{len(regions)}個の領域（描画オブジェクト: {len(drawing_regions)}、セル領域: {len(cell_regions)}）を検出しました。"
+                
+                # シート全体のメタデータをLLMで分析
+                sheet_data = {
+                    "sheetName": sheet.title,
+                    "regions": regions,
+                    "drawingRegionsCount": len(drawing_regions),
+                    "cellRegionsCount": len(cell_regions)
+                }
+                metadata["summary"] = self.openai_helper.generate_sheet_summary(sheet_data)
                 regions.append(metadata)
 
             print(
