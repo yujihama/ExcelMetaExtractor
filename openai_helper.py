@@ -23,12 +23,18 @@ class OpenAIHelper:
                 データサンプル: {json.dumps(cells[:2], ensure_ascii=False)}
                 """
             elif region["regionType"] == "chart":
-                
+
                 # チャート用のサマリー生成
                 prompt = f"""以下のグラフが何について記載されているか簡潔に説明してください:
                 グラフタイプ: {region["chartType"]}
                 データ範囲: {region["series"][0]["data_range"]}
                 内容: {region["chart_data_json"]}
+                """
+            elif region["regionType"] == "shape":
+
+                # 図形用のサマリー生成
+                prompt = f"""以下のExcelの図形が何について記載されているか簡潔に説明してください:
+                内容: {json.dumps(region, ensure_ascii=False)}
                 """
             else:
                 # その他の領域用のサマリー生成
@@ -214,6 +220,9 @@ Respond in JSON format:
 - シートの主な目的や内容
 - 含まれる主要なテーブルや図形
 - データの構造的特徴
+- 表の見た目や表の内容
+- sheetに含まれていない情報は含めないこと
+- 推測で記載しないこと
 """
             response = self.client.chat.completions.create(model=self.model,
                                                            messages=[{
@@ -223,6 +232,8 @@ Respond in JSON format:
                                                                prompt
                                                            }],
                                                            max_tokens=1000)
+            with st.expander("📝 Sheet Summary"):
+                st.write(prompt)
 
             return response.choices[0].message.content
         except Exception as e:
