@@ -262,8 +262,8 @@ def main():
                     st.json(metadata)
     
                 # Automatically generate JSON file
-                json_str = json.dumps(metadata, indent=2)
-                with open(f"{uploaded_file.name}_metadata.json", "w") as file:
+                json_str = json.dumps(metadata, indent=2, ensure_ascii=False)
+                with open(f"{uploaded_file.name}_metadata.json", "w", encoding="utf-8") as file:
                     file.write(json_str)
             except Exception as e:
                 st.error(f"Error processing file: {str(e)}")
