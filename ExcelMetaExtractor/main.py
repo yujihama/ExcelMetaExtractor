@@ -4,6 +4,7 @@ from ExcelMetaExtractor.excel_metadata_extractor import ExcelMetadataExtractor
 import pandas as pd
 import traceback
 from openpyxl.utils import get_column_letter
+import os
 
 
 def display_json_tree(data, key_prefix=""):
@@ -295,9 +296,11 @@ def main():
                     st.json(metadata)
     
                 # Automatically generate JSON file
-                json_str = json.dumps(metadata, indent=2)
-                with open(f"{uploaded_file.name}_metadata.json", "w") as file:
+                json_str = json.dumps(metadata, indent=2, ensure_ascii=False)
+                output_path = os.path.join("output", f"{uploaded_file.name}_metadata.json")
+                with open(output_path, "w", encoding="utf-8") as file:
                     file.write(json_str)
+                st.success(f"メタデータJSONファイルが保存されました: {output_path}")
             except Exception as e:
                 st.error(f"Error processing file: {str(e)}")
                 st.error(f"Detailed error:\n{traceback.format_exc()}")
