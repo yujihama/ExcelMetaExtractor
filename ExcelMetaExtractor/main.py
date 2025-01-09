@@ -1,6 +1,6 @@
 import streamlit as st
 import json
-from excel_metadata_extractor import ExcelMetadataExtractor
+from ExcelMetaExtractor.excel_metadata_extractor import ExcelMetadataExtractor
 import pandas as pd
 import traceback
 from openpyxl.utils import get_column_letter
@@ -51,31 +51,74 @@ def display_region_info(region):
                 st.markdown("#### Text Content")
                 st.text(region['text_content'])
 
-        elif region['regionType'] in ['image', 'smartart', 'chart']:
-            # st.markdown("Drawing Information")
-            # cols = st.columns(2)
-            # with cols[0]:
-            #     st.text(f"Type:{region['type'].title()}")
-            #     if region.get('name'):
-            #         st.text(f"Name: {region['name']}")
-            # with cols[1]:
-            #     if region.get('description'):
-            #         st.text(f"Description: {region['description']}")
+            if 'form_control_type' in region:
+                st.markdown("#### Form Control")
+                control_type = "チェックボックス" if region['form_control_type'] == 'checkbox' else "ラジオボタン"
+                st.write(f"種類: {control_type}")
+                st.write(f"状態: {'選択済み' if region.get('form_control_state', False) else '未選択'}")
+                
+                # if 'is_first_button' in region:
+                #     st.write(f"グループ内の最初のボタン: {'はい' if region['is_first_button'] else 'いいえ'}")
+                
+                if 'text_content' in region and region['text_content']:
+                    st.write(f"表示テキスト: {region['text_content']}")
 
-            # if 'coordinates' in region:
-            #     st.markdown("Position:")
-            #     coords = region['coordinates']
-            #     st.text(
-            #         f"From: Column {coords['from']['col']}, Row {coords['from']['row']}"
-            #     )
-            #     st.text(
-            #         f"To: Column {coords['to']['col']}, Row {coords['to']['row']}"
-            #     )
+                st.write(f"位置: {region['range']}")
+
+
+
+        elif region['regionType'] in ['image', 'smartart', 'chart']:
+            st.markdown("#### Drawing Information")
+            cols = st.columns(2)
+            with cols[0]:
+                st.text(f"Type: {region['type'].title()}")
+                if region.get('name'):
+                    st.text(f"Name: {region['name']}")
+            with cols[1]:
+                if region.get('description'):
+                    st.text(f"Description: {region['description']}")
+
+            if 'coordinates' in region:
+                st.markdown("#### Position")
+                coords = region['coordinates']
+                st.text(f"From: Column {coords['from']['col']}, Row {coords['from']['row']}")
+                st.text(f"To: Column {coords['to']['col']}, Row {coords['to']['row']}")
 
             if region['type'] == 'image':
+                st.markdown("#### Image Analysis")
+                print(f"\n=== Processing image region: {region.get('range')} ===")
+                print(f"Region data: {json.dumps(region, indent=2)}")
+                
+                # GPT-4oの分析結果を表示
+                if 'gpt4o_analysis' in region and region['gpt4o_analysis']:
+                    print(f"Found GPT-4 analysis: {region['gpt4o_analysis']}")
+                    analysis = region['gpt4o_analysis']
+                    st.write("画像の種類：", analysis.get('imageType', '不明'))
+                    st.write("内容：", analysis.get('content', '不明'))
+                    st.write("特徴：", ", ".join(analysis.get('features', [])) or '不明')
+                else:
+                    print("No analysis found in region")
+                
                 if 'image_ref' in region:
-                    st.markdown("Image Details:")
+                    print(f"Found image reference: {region['image_ref']}")
                     st.text(f"Reference: {region['image_ref']}")
+                else:
+                    print("No image reference found in region")
+
+            elif region['type'] == 'shape' and 'form_control_type' in region:
+                st.markdown("#### Form Control")
+                control_type = "チェックボックス" if region['form_control_type'] == 'checkbox' else "ラジオボタン"
+                st.write(f"種類: {control_type}")
+                st.write(f"状態: {'選択済み' if region.get('form_control_state', False) else '未選択'}")
+                
+                # if 'is_first_button' in region:
+                #     st.write(f"グループ内の最初のボタン: {'はい' if region['is_first_button'] else 'いいえ'}")
+                
+                if 'text_content' in region and region['text_content']:
+                    st.write(f"表示テキスト: {region['text_content']}")
+
+                st.write(f"位置: {region['range']}")
+
             elif region['type'] == 'smartart':
                 if 'diagram_type' in region:
                     st.markdown("SmartArt Details:")
@@ -83,25 +126,15 @@ def display_region_info(region):
             elif region['type'] == 'chart':
                 st.markdown("#### Chart Details")
                 
-                # if 'chart_ref' in region:
-                #     st.text(f"Chart Reference: {region['chart_ref']}")
                 if 'chartType' in region:
-                    st.text(f"Chart Type:{region['chartType'].title()}" )
+                    st.text(f"Chart Type: {region['chartType'].title()}")
                 if 'title' in region:
                     st.text(f"Title: {region['title']}")
                 if 'series' in region:
                     st.markdown("#### Data Range")
                     for series in region['series']:
-                        # st.markdown(
-                        #     f"- Series: {series.get('name', 'Unnamed')}")
                         if 'data_range' in series:
-                            st.text(
-                                f"  Data Range: {series['data_range']}")
-                
-                # Display chart image if available
-                # if 'image_path' in region and region['image_path']:
-                #     st.markdown("#### Chart Visualization")
-                #     st.image(region['image_path'])
+                            st.text(f"Data Range: {series['data_range']}")
 
         elif region['regionType'] == 'table':
             st.markdown("### Table Information")
