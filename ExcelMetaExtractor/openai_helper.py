@@ -245,8 +245,6 @@ Respond in JSON format:
                                                                prompt
                                                            }],
                                                            max_tokens=2000)
-            with st.expander("📝 Sheet Summary"):
-                st.write(prompt)
 
             return response.choices[0].message.content
         except Exception as e:
