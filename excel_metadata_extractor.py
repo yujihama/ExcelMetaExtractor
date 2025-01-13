@@ -66,8 +66,8 @@ class ExcelMetadataExtractor:
     def recreate_charts(self, chart_data_list, output_dir):
         return self.chart_processor.recreate_charts(chart_data_list, output_dir)
 
-    def extract_drawing_info(self, sheet, excel_zip, drawing_path) -> List[Dict[str, Any]]:
-        return self.drawing_extractor.extract_drawing_info(sheet, excel_zip, drawing_path)
+    def extract_drawing_info(self, sheet, excel_zip, drawing_path, openai_helper) -> List[Dict[str, Any]]: # Added openai_helper
+        return self.drawing_extractor.extract_drawing_info(sheet, excel_zip, drawing_path, openai_helper) # Added openai_helper
 
     def _get_vml_controls(self, excel_zip):
         vml_controls = []
@@ -227,7 +227,7 @@ class ExcelMetadataExtractor:
         sheet_name = sheet.title
         if sheet_name in sheet_drawing_map:
             drawing_path = sheet_drawing_map[sheet_name]
-            drawings = self.extract_drawing_info(sheet, excel_zip, drawing_path)
+            drawings = self.extract_drawing_info(sheet, excel_zip, drawing_path, self.openai_helper) # Added self.openai_helper
 
             for drawing in drawings:
                 region_info = self._create_region_info(drawing)
@@ -290,7 +290,7 @@ class ExcelMetadataExtractor:
                     sheet_name = sheet.title
                     if sheet_name in sheet_drawing_map:
                         drawing_path = sheet_drawing_map[sheet_name]
-                        drawings = self.extract_drawing_info(sheet, excel_zip, drawing_path)
+                        drawings = self.extract_drawing_info(sheet, excel_zip, drawing_path, self.openai_helper) # Added self.openai_helper
 
                         for drawing in drawings:
                             self.logger.start_region_processing(drawing)

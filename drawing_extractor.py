@@ -164,7 +164,7 @@ class DrawingExtractor:
         to_col = get_column_letter(coords["to"]["col"] + 1)
         return f"{from_col}{coords['from']['row'] + 1}:{to_col}{coords['to']['row'] + 1}"
 
-    def extract_drawing_info(self, sheet, excel_zip, drawing_path, openai_helper) -> List[Dict[str, Any]]:
+    def extract_drawing_info(self, sheet, excel_zip, drawing_path) -> List[Dict[str, Any]]:
         self.logger.method_start("extract_drawing_info")
         drawing_list = []
         try:
@@ -182,7 +182,7 @@ class DrawingExtractor:
 
                 for anchor in anchors:
                     self._process_shapes(anchor, vml_controls, drawing_list)
-                    self._process_drawings(anchor, excel_zip, drawing_list, openai_helper)
+                    self._process_drawings(anchor, excel_zip, drawing_list)
 
         except Exception as e:
             self.logger.error(f"Error in extract_drawing_info: {str(e)}")
