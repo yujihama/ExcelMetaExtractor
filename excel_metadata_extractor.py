@@ -128,11 +128,18 @@ class ExcelMetadataExtractor:
         # Process charts
         chart = anchor.find('.//c:chart', self.ns)
         if chart is not None:
+            # Log before chart processing
+            self.logger.info(f"Processing chart element with ID: {chart.get('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id')}")
             chart_info = self.chart_processor._extract_chart_info(chart, excel_zip)
             if chart_info:
                 chart_info["coordinates"] = coordinates
                 chart_info["range"] = range_str
+                # Log chart data
+                self.logger.info(f"Extracted chart data: {json.dumps(chart_info)}")
                 drawing_list.append(chart_info)
+            else:
+                self.logger.error("Failed to extract chart info")
+
 
         # Process other elements
         for grp in anchor.findall('.//xdr:grpSp', self.ns):
@@ -151,7 +158,7 @@ class ExcelMetadataExtractor:
 
 
 
-    
+
 
     def _parse_vml_for_controls(self, vml_content):
         """VMLコンテンツからコントロール情報を抽出"""

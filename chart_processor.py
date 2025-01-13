@@ -177,6 +177,7 @@ class ChartProcessor:
 
     def _extract_chart_info(self, chart_elem, excel_zip):
         try:
+            self.logger.info("Starting chart info extraction")
             chart_info = {
                 "type": "chart",
                 "name": "",
