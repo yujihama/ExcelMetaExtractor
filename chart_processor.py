@@ -234,15 +234,8 @@ class ChartProcessor:
                         "categories": []
                     }
                     
-                    if not series_elements:
-                        self.logger.error("No series elements found in chart")
-                        chart_info["chart_data_json"] = json.dumps(chart_data)
-                        return chart_info
-                    
-                    self.logger.info(f"Found {len(series_elements)} series elements")
                     for series in series_elements:
                         series_data = {}
-                        self.logger.info("Processing series element")
                         
                         # Get series name
                         series_name = series.find('.//c:tx//c:v', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
@@ -257,44 +250,19 @@ class ChartProcessor:
                         # Get data values
                         values = series.findall('.//c:val//c:numRef//c:numCache//c:v', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
                         if values:
-                            try:
-                                series_data["values"] = [float(v.text) if v.text and v.text.strip() and v.text.replace('.','',1).replace('-','',1).isdigit() else 0 for v in values]
-                                chart_data["series"].append(series_data["values"])
-                                self.logger.info(f"Extracted values: {series_data['values']}")
-                            except Exception as e:
-                                self.logger.error(f"Error processing values: {str(e)}")
-                                series_data["values"] = []
+                            series_data["values"] = [float(v.text) if v.text.replace('.','',1).isdigit() else 0 for v in values]
+                            chart_data["series"].append(series_data["values"])
 
                         # Get categories
                         cats = series.findall('.//c:cat//c:strRef//c:strCache//c:v', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
-                        if cats:
-                            try:
-                                categories = [c.text for c in cats if c.text]
-                                if categories and not chart_data["categories"]:
-                                    chart_data["categories"] = categories
-                                    self.logger.info(f"Extracted categories: {categories}")
-                            except Exception as e:
-                                self.logger.error(f"Error processing categories: {str(e)}")
+                        if cats and not chart_data["categories"]:
+                            chart_data["categories"] = [c.text for c in cats]
 
-                        if series_data:
-                            chart_info["series"].append(series_data)
-                            self.logger.info(f"Added series data: {json.dumps(series_data)}")
-                        
-                        # Get caption
-                        if not chart_info["name"]:
-                            caption = series.find('.//c:cat//c:strRef//c:strCache//c:v', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
-                            if caption is not None and caption.text:
-                                chart_info["name"] = caption.text
+                        chart_info["series"].append(series_data)
                     
-                    # Always set chart_data_json if we have any data
                     chart_info["chart_data_json"] = json.dumps(chart_data)
-                    self.logger.info(f"Final chart data: {json.dumps(chart_data)}")
                     self.logger.info(f"Complete chart info: {json.dumps(chart_info, indent=2)}")
                     self.logger.info(f"Chart data: {json.dumps(chart_data, indent=2)}")
-            else:
-                self.logger.error("No valid chart data found")
-                self.logger.info("Series data: " + str(chart_data["series"]))
-                self.logger.info("Categories data: " + str(chart_data["categories"]))
             
             return chart_info
         except Exception as e:
