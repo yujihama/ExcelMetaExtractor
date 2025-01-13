@@ -6,7 +6,7 @@ from datetime import datetime
 class Logger:
     def __init__(self):
         logging.basicConfig(
-            level=logging.INFO,
+            level=logging.DEBUG,
             format='%(asctime)s [%(levelname)s] %(message)s',
             handlers=[
                 logging.StreamHandler(),
