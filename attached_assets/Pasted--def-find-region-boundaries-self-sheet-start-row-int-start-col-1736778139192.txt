@@ -1,0 +1,54 @@
+    def find_region_boundaries(self, sheet, start_row: int,
+                               start_col: int) -> Tuple[int, int]:
+        """Find the boundaries of a contiguous region with improved detection"""
+        max_row = start_row
+        max_col = start_col
+        min_empty_rows = 1  # 空白行が1行以上続いたら領域の終わりとみなす
+        min_empty_cols = 1  # 空白列が1列以上続いたら領域の終わナとみなす
+
+        # 下方向のスキャン
+        empty_row_count = 0
+        for row in range(start_row, min(sheet.max_row + 1,
+                                        start_row + 1000)):  # 1000行を上限に
+            # 現在の行が空かどうかチェック
+            row_empty = True
+            for col in range(start_col,
+                             min(start_col + 20,
+                                 sheet.max_column + 1)):  # 20列をサンプルに
+                if sheet.cell(row=row, column=col).value is not None:
+                    row_empty = False
+                    break
+
+            if row_empty:
+                empty_row_count += 1
+                if empty_row_count >= min_empty_rows:
+                    break
+            else:
+                empty_row_count = 0
+                max_row = row
+
+        # 右方向のスキャン
+        empty_col_count = 0
+        for col in range(start_col, min(sheet.max_column + 1,
+                                        start_col + 50)):  # 50列を上限に
+            # 現在の列が空かどうかチェック
+            col_empty = True
+            for row in range(start_row, min(max_row + 1,
+                                            start_row + 50)):  # 20行をサンプルに
+                if sheet.cell(row=row, column=col).value is not None:
+                    col_empty = False
+                    break
+
+            if col_empty:
+                empty_col_count += 1
+                if empty_col_count >= min_empty_cols:
+                    break
+            else:
+                empty_col_count = 0
+                max_col = col
+
+        # 最小でも元の位置を維持
+        max_row = max(max_row, start_row)
+        max_col = max(max_col, start_col)
+
+        return max_row, max_col
