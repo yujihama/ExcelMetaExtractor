@@ -164,6 +164,21 @@ class DrawingExtractor:
         to_col = get_column_letter(coords["to"]["col"] + 1)
         return f"{from_col}{coords['from']['row'] + 1}:{to_col}{coords['to']['row'] + 1}"
 
+    def _get_vml_controls(self, excel_zip):
+        vml_controls = []
+        vml_files = [f for f in excel_zip.namelist() if f.startswith('xl/drawings/') and f.endswith('.vml')]
+
+        for vml_file in vml_files:
+            try:
+                with excel_zip.open(vml_file) as f:
+                    vml_content = f.read().decode('utf-8')
+                    controls = self._parse_vml_for_controls(vml_content)
+                    vml_controls.extend(controls)
+            except Exception as e:
+                self.logger.error(f"Error processing VML file {vml_file}: {str(e)}")
+
+        return vml_controls
+
     def extract_drawing_info(self, sheet, excel_zip, drawing_path) -> List[Dict[str, Any]]:
         self.logger.method_start("extract_drawing_info")
         drawing_list = []
@@ -216,6 +231,69 @@ class DrawingExtractor:
         except Exception as e:
             self.logger.error(f"Error in _extract_connector_info: {str(e)}")
             return None
+
+    def _parse_vml_for_controls(self, vml_content):
+        controls = []
+        try:
+            namespaces = {
+                'v': 'urn:schemas-microsoft-com:vml',
+                'o': 'urn:schemas-microsoft-com:office:office',
+                'x': 'urn:schemas-microsoft-com:office:excel'
+            }
+
+            root = ET.fromstring(vml_content)
+            control_elements = root.findall('.//{urn:schemas-microsoft-com:vml}shape')
+
+            for element in control_elements:
+                try:
+                    textbox = element.find('.//v:textbox', namespaces)
+                    text_content = ""
+                    if textbox is not None:
+                        div = textbox.find('.//div')
+                        if div is not None:
+                            text_content = "".join(div.itertext()).strip()
+
+                    control_type = element.find('.//{urn:schemas-microsoft-com:office:excel}ClientData')
+                    if control_type is not None:
+                        control_type_value = control_type.get('ObjectType')
+
+                        shape_id = element.get('id', '')
+                        try:
+                            numeric_id = shape_id.split('_s')[-1]
+                            numeric_id = int(numeric_id) if numeric_id.isdigit() else None
+                        except (ValueError, IndexError) as e:
+                            self.logger.error(f"Error extracting numeric ID from shape_id {shape_id}: {str(e)}")
+                            continue
+
+                        control = {
+                            'id': shape_id,
+                            'numeric_id': str(numeric_id) if numeric_id is not None else None,
+                            'type': 'checkbox' if control_type_value == 'Checkbox' else 'radio',
+                            'checked': False,
+                            'position': '',
+                            'text': text_content
+                        }
+
+                        checked = control_type.find('.//{urn:schemas-microsoft-com:office:excel}Checked')
+                        if checked is not None and checked.text:
+                            control['checked'] = checked.text == '1'
+
+                        if control_type_value == 'Radio':
+                            first_button = control_type.find('.//{urn:schemas-microsoft-com:office:excel}FirstButton')
+                            if first_button is not None:
+                                control['is_first_button'] = first_button.text == '1'
+
+                        controls.append(control)
+
+                except Exception as control_error:
+                    self.logger.error(f"Error processing individual control: {str(control_error)}")
+                    continue
+
+        except Exception as e:
+            self.logger.error(f"Error parsing VML content: {str(e)}")
+            return []
+
+        return controls
 
     def extract_picture_info(self, pic, excel_zip, ns): 
         try:
