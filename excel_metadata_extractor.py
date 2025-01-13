@@ -477,8 +477,11 @@ class ExcelMetadataExtractor:
 
                     metadata["summary"] = self.openai_helper.generate_sheet_summary(sheet_data)
                     regions.append(metadata)
+                except Exception as e:
+                    self.logger.error(f"Error generating metadata: {str(e)}")
+                    self.logger.error(f"Error generating metadata: {traceback.format_exc()}")
 
-    except Exception as e:
+            return regions
             self.logger.error(f"Error generating metadata: {str(e)}")
             self.logger.error(f"Error generating metadata: {traceback.format_exc()}")
             self.logger.method_end("extract_all_metadata")
