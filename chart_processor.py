@@ -210,12 +210,6 @@ class ChartProcessor:
                     chart_tree = ET.parse(chart_file)
                     chart_root = chart_tree.getroot()
                     
-                    # Extract chart type
-                    chart_type_elem = chart_root.find('.//c:plotArea/*', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
-                    if chart_type_elem is not None:
-                        chart_info["chartType"] = chart_type_elem.tag.split('}')[-1]
-                    self.logger.debug(f"Extracted chartType: {chart_info['chartType']}")
-                    
                     # Extract title
                     title_elem = chart_root.find('.//c:title//c:tx//c:rich//a:t', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart', 'a': 'http://schemas.openxmlformats.org/drawingml/2006/main'})
                     if title_elem is not None:
