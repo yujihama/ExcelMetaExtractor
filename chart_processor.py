@@ -212,7 +212,18 @@ class ChartProcessor:
                     # Extract title
                     title_elem = chart_root.find('.//c:title//c:tx//c:rich//a:t', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart', 'a': 'http://schemas.openxmlformats.org/drawingml/2006/main'})
                     if title_elem is not None:
-                        chart_info["name"] = title_elem.text
+                        chart_info["name"] = title_elem.text if title_elem is not None else ""
+
+                    # Get chart type
+                    plot_area = chart_root.find('.//c:plotArea', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
+                    if plot_area is not None:
+                        for child in plot_area:
+                            if child.tag.endswith('}barChart'):
+                                chart_info["chartType"] = "barChart"
+                            elif child.tag.endswith('}lineChart'):
+                                chart_info["chartType"] = "lineChart"
+                            elif child.tag.endswith('}pieChart'):
+                                chart_info["chartType"] = "pieChart"
 
                     # Extract series data
                     series_elements = chart_root.findall('.//c:ser', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
