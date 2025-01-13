@@ -220,31 +220,28 @@ Respond in JSON format:
                     region_summaries.append(
                         f"{region_type} ({region_range}): {summary}")
 
-            prompt = f"""以下はExcelシートから抽出された情報です。各領域の情報をよく理解したうえで記載されていることを客観的に推測を交えずに説明してください。:
-シート名: {sheet_data.get('sheetName', '')}
-検出された領域数: {len(regions)}
-
-各領域の要約:
-{"\n".join(region_summaries)}
-
-以下の点に注目して要約してください:
-- シートの主な目的や内容
-- 含まれる主要なテーブルや図形
-- 各領域の関係性
-
-特に以下にはよく注意してください:
-- 表/グラフの見た目や内容の特徴をしっかりとらえて要約してください。
-- sheetに含まれていない情報は含めないでください。
-- 推測で記載しないでください。
-"""
+            region_summaries_text = "\n".join(region_summaries)
+            prompt = (
+                f"以下はExcelシートから抽出された情報です。各領域の情報をよく理解したうえで"
+                f"記載されていることを客観的に推測を交えずに説明してください：\n"
+                f"シート名: {sheet_data.get('sheetName', '')}\n"
+                f"検出された領域数: {len(regions)}\n\n"
+                f"各領域の要約:\n{region_summaries_text}\n\n"
+                "以下の点に注目して要約してください:\n"
+                "- シートの主な目的や内容\n"
+                "- 含まれる主要なテーブルや図形\n"
+                "- 各領域の関係性\n\n"
+                "特に以下にはよく注意してください:\n"
+                "- 表/グラフの見た目や内容の特徴をしっかりとらえて要約してください。\n"
+                "- sheetに含まれていない情報は含めないでください。\n"
+                "- 推測で記載しないでください。"
+            )
             response = self.client.chat.completions.create(model=self.model,
-                                                           messages=[{
-                                                               "role":
-                                                               "user",
-                                                               "content":
-                                                               prompt
-                                                           }],
-                                                           max_tokens=2000)
+                                                         messages=[{
+                                                             "role": "user",
+                                                             "content": prompt
+                                                         }],
+                                                         max_tokens=2000)
 
             return response.choices[0].message.content
         except Exception as e:
