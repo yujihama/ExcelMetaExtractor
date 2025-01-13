@@ -313,8 +313,8 @@ class ExcelMetadataExtractor:
 
             # セル領域の処理
 
-            for row in range(1, min(sheet.max_row + 1, 100)):
-                for col in range(1, min(sheet.max_column + 1, 20)):
+            for row in range(1, min(sheet.max_row + 1, 500)):
+                for col in range(1, min(sheet.max_column + 1, 50)):
                     try:
                         cell_coord = f"{get_column_letter(col)}{row}"
                         if cell_coord in processed_cells:
