@@ -1,4 +1,3 @@
-
 import os
 from typing import Dict, Any, List
 import xml.etree.ElementTree as ET
@@ -116,7 +115,7 @@ class DrawingExtractor:
 
     def _get_coordinates(self, anchor):
         coords = {"from": {"col": 0, "row": 0}, "to": {"col": 0, "row": 0}}
-        
+
         if anchor.tag.endswith('absoluteAnchor'):
             pos = anchor.find('.//xdr:pos', self.ns)
             ext = anchor.find('.//xdr:ext', self.ns)
@@ -248,16 +247,15 @@ class DrawingExtractor:
                                                     image_data = img_file.read()
                                                     image_base64 = base64.b64encode(image_data).decode('utf-8')
 
-                                                    # OpenAI APIを使用した画像分析を実行
-analysis_result = None
-if hasattr(self, 'openai_helper'):
-    analysis_result = self.openai_helper.analyze_image_with_gpt4o(image_base64)
-if analysis_result:
-    image_info["gpt4o_analysis"] = analysis_result
+                                                    analysis_result = None
+                                                    if hasattr(self, 'openai_helper'):
+                                                        analysis_result = self.openai_helper.analyze_image_with_gpt4o(image_base64)
+                                                    if analysis_result:
+                                                        image_info["gpt4o_analysis"] = analysis_result
 
                         except Exception as e:
                             self.logger.error(f"Error analyzing image: {str(e)}")
-                            self.logger.exception(e)
+                            
 
                         return image_info
             return None
