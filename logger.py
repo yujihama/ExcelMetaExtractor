@@ -51,3 +51,6 @@ class Logger:
             self.logger.error(f"{message}: {str(error)}")
         else:
             self.logger.error(message)
+
+    def debug(self, message):
+        self.logger.debug(message)
