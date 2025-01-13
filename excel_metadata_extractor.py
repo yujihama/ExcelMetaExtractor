@@ -376,7 +376,13 @@ class ExcelMetadataExtractor:
                     print(f"\nLooking for VML control - Shape ID: {shape_id}")
                     print(f"Available VML controls: {list(vml_controls.keys())}")
 
-                    vml_control = vml_controls.get(shape_id)
+                    # シェイプIDからVMLコントロールを検索
+                    vml_control = None
+                    for control in vml_controls.values():
+                        if control.get('numeric_id') == shape_id:
+                            vml_control = control
+                            break
+
                     if vml_control:
                         print(f"Found VML control: {json.dumps(vml_control, indent=2)}")
                         shape_info.update({
@@ -573,15 +579,24 @@ class ExcelMetadataExtractor:
             control_elements = root.findall('.//{urn:schemas-microsoft-com:vml}shape')
 
             for element in control_elements:
-                # shape IDを直接取得（例：_x0000_s1027）
-                shape_id = element.get('id', '')
                 control_type = element.find('.//{urn:schemas-microsoft-com:office:excel}ClientData')
                 if control_type is not None:
                     control_type_value = control_type.get('ObjectType')
 
                     if control_type_value in ['Checkbox', 'Radio']:
+                        # shape IDを直接取得（例：_x0000_s1027）
+                        shape_id = element.get('id', '')
+                        # IDの数値部分を取得（例：1027）
+                        try:
+                            numeric_id = shape_id.split('_s')[-1]
+                            print(f"Processing shape with ID: {shape_id}, numeric part: {numeric_id}")
+                        except (ValueError, IndexError) as e:
+                            print(f"Error extracting numeric ID from shape_id {shape_id}: {str(e)}")
+                            continue
+
                         control = {
-                            'id': shape_id,  # IDを直接使用
+                            'id': shape_id,
+                            'numeric_id': numeric_id,
                             'type': 'checkbox' if control_type_value == 'Checkbox' else 'radio',
                             'checked': False,
                             'position': '',
