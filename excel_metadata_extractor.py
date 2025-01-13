@@ -112,6 +112,10 @@ class ExcelMetadataExtractor:
             if chart_info:
                 chart_info["coordinates"] = coordinates
                 chart_info["range"] = range_str
+                # Extract chart data
+                chart_data = self.chart_processor.extract_chart_data(self.workbook, None)
+                if chart_data:
+                    chart_info["chart_data"] = chart_data
                 # Log chart data
                 self.logger.info(f"Extracted chart data: {json.dumps(chart_info)}")
                 drawing_list.append(chart_info)
