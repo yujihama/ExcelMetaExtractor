@@ -4,6 +4,7 @@ from openpyxl.chart import BarChart, LineChart, PieChart, ScatterChart, Referenc
 from openpyxl.utils.cell import coordinate_from_string, column_index_from_string
 import tempfile
 import os
+import xml.etree.ElementTree as ET
 from logger import Logger
 
 class ChartProcessor:
