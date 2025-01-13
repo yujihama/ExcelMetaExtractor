@@ -119,7 +119,7 @@ class ExcelMetadataExtractor:
 
         # Process images
         for pic in anchor.findall('.//xdr:pic', self.ns):
-            image_info = self._extract_picture_info(pic, excel_zip) #Pass excel_zip
+            image_info = self.drawing_extractor.extract_picture_info(pic, excel_zip, self.ns)
             if image_info:
                 image_info["coordinates"] = coordinates
                 image_info["range"] = range_str

@@ -10,6 +10,7 @@ from openpyxl.utils import get_column_letter
 class DrawingExtractor:
     def __init__(self, logger: Logger):
         self.logger = logger
+        self.openai_helper = OpenAIHelper()
         self.ns = {
             'a': 'http://schemas.openxmlformats.org/drawingml/2006/main',
             'xdr': 'http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing',
@@ -187,3 +188,47 @@ class DrawingExtractor:
             self.logger.error(f"Error in extract_drawing_info: {str(e)}")
 
         return drawing_list
+def extract_picture_info(self, pic, excel_zip, ns): 
+        try:
+            name_elem = pic.find('.//xdr:nvPicPr/xdr:cNvPr', ns)
+            if name_elem is not None:
+                image_info = {
+                    "type": "image",
+                    "name": name_elem.get('name', ''),
+                    "description": name_elem.get('descr', ''),
+                }
+
+                blip = pic.find('.//a:blip', ns)
+                if blip is not None:
+                    image_ref = blip.get(f'{{{ns["r"]}}}embed')
+                    if image_ref:
+                        image_info["image_ref"] = image_ref
+
+                        try:
+                            rels_path = f'xl/drawings/_rels/drawing1.xml.rels'
+                            if rels_path in excel_zip.namelist():
+                                with excel_zip.open(rels_path) as rels_file:
+                                    rels_tree = ET.parse(rels_file)
+                                    rels_root = rels_tree.getroot()
+
+                                    for rel in rels_root.findall('.//{http://schemas.openxmlformats.org/package/2006/relationships}Relationship'):
+                                        if rel.get('Id') == image_ref:
+                                            image_path = rel.get('Target').replace('..', 'xl')
+                                            if image_path in excel_zip.namelist():
+                                                with excel_zip.open(image_path) as img_file:
+                                                    image_data = img_file.read()
+                                                    image_base64 = base64.b64encode(image_data).decode('utf-8')
+
+                                                    analysis_result = self.openai_helper.analyze_image_with_gpt4o(image_base64)
+                                                    if analysis_result:
+                                                        image_info["gpt4o_analysis"] = analysis_result
+
+                        except Exception as e:
+                            self.logger.error(f"Error analyzing image: {str(e)}")
+                            self.logger.exception(e)
+
+                        return image_info
+            return None
+        except Exception as e:
+            self.logger.error(f"Error in extract_picture_info: {str(e)}")
+            return None
