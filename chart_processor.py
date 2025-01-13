@@ -261,6 +261,8 @@ class ChartProcessor:
                         chart_info["series"].append(series_data)
                     
                     chart_info["chart_data_json"] = json.dumps(chart_data)
+                    self.logger.info(f"Complete chart info: {json.dumps(chart_info, indent=2)}")
+                    self.logger.info(f"Chart data: {json.dumps(chart_data, indent=2)}")
             
             return chart_info
         except Exception as e:
