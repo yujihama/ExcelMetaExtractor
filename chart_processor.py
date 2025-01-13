@@ -288,12 +288,12 @@ class ChartProcessor:
                     # Always set chart_data_json if we have any data
                     chart_info["chart_data_json"] = json.dumps(chart_data)
                     self.logger.info(f"Final chart data: {json.dumps(chart_data)}")
-                        self.logger.info(f"Complete chart info: {json.dumps(chart_info, indent=2)}")
-                        self.logger.info(f"Chart data: {json.dumps(chart_data, indent=2)}")
-                    else:
-                        self.logger.error("No valid chart data found")
-                        self.logger.info("Series data: " + str(chart_data["series"]))
-                        self.logger.info("Categories data: " + str(chart_data["categories"]))
+                    self.logger.info(f"Complete chart info: {json.dumps(chart_info, indent=2)}")
+                    self.logger.info(f"Chart data: {json.dumps(chart_data, indent=2)}")
+            else:
+                self.logger.error("No valid chart data found")
+                self.logger.info("Series data: " + str(chart_data["series"]))
+                self.logger.info("Categories data: " + str(chart_data["categories"]))
             
             return chart_info
         except Exception as e:
