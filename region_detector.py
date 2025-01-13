@@ -10,6 +10,7 @@ class RegionDetector:
         max_row = start_row
         max_col = start_col
         current_row = start_row
+        self.logger.debug_boundaries(start_row, start_col, sheet.max_row, sheet.max_column)
         
         # Find the bottom boundary
         while current_row <= sheet.max_row:

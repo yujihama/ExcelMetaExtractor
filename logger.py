@@ -58,3 +58,9 @@ class Logger:
 
     def debug(self, message):
         self.logger.debug(message)
+        
+    def debug_region(self, row, col, value, region_type=None):
+        self.logger.debug(f"Processing cell at row={row}, col={col}, value={value}, detected_type={region_type}")
+
+    def debug_boundaries(self, start_row, start_col, max_row, max_col):
+        self.logger.debug(f"Region boundaries: ({start_row},{start_col}) to ({max_row},{max_col})")
