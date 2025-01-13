@@ -259,10 +259,18 @@ class ChartProcessor:
                             chart_data["categories"] = [c.text for c in cats]
 
                         chart_info["series"].append(series_data)
+                        
+                        # Get caption
+                        if not chart_info["name"]:
+                            caption = series.find('.//c:cat//c:strRef//c:strCache//c:v', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
+                            if caption is not None:
+                                chart_info["name"] = caption.text
                     
-                    chart_info["chart_data_json"] = json.dumps(chart_data)
-                    self.logger.info(f"Complete chart info: {json.dumps(chart_info, indent=2)}")
-                    self.logger.info(f"Chart data: {json.dumps(chart_data, indent=2)}")
+                    # Set chart data with non-empty values
+                    if chart_data["series"] or chart_data["categories"]:
+                        chart_info["chart_data_json"] = json.dumps(chart_data)
+                        self.logger.info(f"Complete chart info: {json.dumps(chart_info, indent=2)}")
+                        self.logger.info(f"Chart data: {json.dumps(chart_data, indent=2)}")
             
             return chart_info
         except Exception as e:
