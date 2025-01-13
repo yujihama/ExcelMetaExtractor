@@ -701,7 +701,7 @@ class ExcelMetadataExtractor:
                     self.file_obj.seek(0)
                     f.write(self.file_obj.read())
 
-                with zipfile.ZipFile(tempzip, 'r') as excel_zip:
+                with zipfile.ZipFile(temp_zip, 'r') as excel_zip:
                     sheet_drawing_map = self.get_sheet_drawing_relations(excel_zip)
                     sheet_name = sheet.title
                     if sheet_name in sheet_drawing_map:
