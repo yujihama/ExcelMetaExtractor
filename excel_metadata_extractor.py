@@ -268,16 +268,21 @@ class ExcelMetadataExtractor:
     def _get_vml_controls(self, excel_zip):
         vml_controls = {}
         vml_files = [f for f in excel_zip.namelist() if f.startswith('xl/drawings/') and f.endswith('.vml')]
+        print(f"\nFound VML files: {vml_files}")
 
         for vml_file in vml_files:
             try:
+                print(f"\nProcessing VML file: {vml_file}")
                 with excel_zip.open(vml_file) as f:
                     vml_content = f.read().decode('utf-8')
                     controls = self._parse_vml_for_controls(vml_content)
                     for control in controls:
-                        vml_controls[f"{control['position']}"] = control
+                        # IDを直接キーとして使用
+                        vml_controls[control['id']] = control
+                        print(f"Added control with ID {control['id']}: {json.dumps(control, indent=2)}")
             except Exception as e:
-                print(f"Error processing VML file: {str(e)}")
+                print(f"Error processing VML file {vml_file}: {str(e)}")
+                print(traceback.format_exc())
 
         return vml_controls
 
@@ -364,16 +369,16 @@ class ExcelMetadataExtractor:
                 shape_info["hidden"] = name_elem.get('hidden', '0') == '1'
                 shape_info["description"] = name_elem.get('descr', '')
 
-                shape_id = name_elem.get('id') if name_elem is not None else None
+                shape_id = name_elem.get('id')  # shape IDを取得
                 if shape_id:
                     range_str = self._get_range_from_coordinates(shape_info["coordinates"])
                     shape_info["range"] = range_str
-                    print(f"\nLooking for VML control at range: {range_str}")
+                    print(f"\nLooking for VML control - Shape ID: {shape_id}")
                     print(f"Available VML controls: {list(vml_controls.keys())}")
 
-                    vml_control = vml_controls.get(range_str)
+                    vml_control = vml_controls.get(shape_id)
                     if vml_control:
-                        print(f"Found VML control: {vml_control}")
+                        print(f"Found VML control: {json.dumps(vml_control, indent=2)}")
                         shape_info.update({
                             "text_content": vml_control.get("text", ""),
                             "form_control_type": vml_control.get("type"),
@@ -382,7 +387,7 @@ class ExcelMetadataExtractor:
                         if vml_control.get("is_first_button") is not None:
                             shape_info["is_first_button"] = vml_control["is_first_button"]
                     else:
-                        print(f"No VML control found for range: {range_str}")
+                        print(f"No VML control found for ID: {shape_id}")
 
             return shape_info
         except Exception as e:
@@ -568,22 +573,15 @@ class ExcelMetadataExtractor:
             control_elements = root.findall('.//{urn:schemas-microsoft-com:vml}shape')
 
             for element in control_elements:
+                # shape IDを直接取得（例：_x0000_s1027）
+                shape_id = element.get('id', '')
                 control_type = element.find('.//{urn:schemas-microsoft-com:office:excel}ClientData')
                 if control_type is not None:
                     control_type_value = control_type.get('ObjectType')
 
                     if control_type_value in ['Checkbox', 'Radio']:
-                        # IDの処理を改善
-                        shape_id = element.get('id', '')
-                        try:
-                            # '_x0000_s1025' -> '1025'のように数値部分を抽出
-                            id_num = shape_id.split('_s')[-1] if '_s' in shape_id else '0'
-                            control_id = int(id_num)
-                        except (ValueError, IndexError):
-                            control_id = 0
-
                         control = {
-                            'id': control_id,
+                            'id': shape_id,  # IDを直接使用
                             'type': 'checkbox' if control_type_value == 'Checkbox' else 'radio',
                             'checked': False,
                             'position': '',
@@ -614,6 +612,7 @@ class ExcelMetadataExtractor:
                             if first_button is not None:
                                 control['is_first_button'] = first_button.text == '1'
 
+                        print(f"Found VML control with ID: {shape_id}")
                         controls.append(control)
 
         except Exception as e:
@@ -621,7 +620,6 @@ class ExcelMetadataExtractor:
             print(f"VML content: {vml_content[:200]}...")  # 最初の200文字のみ表示
 
         return controls
-
 
     def detect_regions(self, sheet) -> List[Dict[str, Any]]:
         regions = []
