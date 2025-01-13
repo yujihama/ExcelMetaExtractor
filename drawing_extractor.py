@@ -189,7 +189,35 @@ class DrawingExtractor:
             self.logger.error(f"Error in extract_drawing_info: {str(e)}")
 
         return drawing_list
-def extract_picture_info(self, pic, excel_zip, ns): 
+def _extract_group_info(self, grp):
+        try:
+            name_elem = grp.find('.//xdr:nvGrpSpPr/xdr:cNvPr', self.ns)
+            if name_elem is not None:
+                return {
+                    "type": "group",
+                    "name": name_elem.get('name', ''),
+                    "description": name_elem.get('descr', '')
+                }
+            return None
+        except Exception as e:
+            self.logger.error(f"Error in _extract_group_info: {str(e)}")
+            return None
+
+    def _extract_connector_info(self, cxn):
+        try:
+            name_elem = cxn.find('.//xdr:nvCxnSpPr/xdr:cNvPr', self.ns)
+            if name_elem is not None:
+                return {
+                    "type": "connector",
+                    "name": name_elem.get('name', ''),
+                    "description": name_elem.get('descr', '')
+                }
+            return None
+        except Exception as e:
+            self.logger.error(f"Error in _extract_connector_info: {str(e)}")
+            return None
+
+    def extract_picture_info(self, pic, excel_zip, ns): 
         try:
             name_elem = pic.find('.//xdr:nvPicPr/xdr:cNvPr', ns)
             if name_elem is not None:

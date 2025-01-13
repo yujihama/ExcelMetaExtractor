@@ -136,14 +136,14 @@ class ExcelMetadataExtractor:
 
         # Process other elements
         for grp in anchor.findall('.//xdr:grpSp', self.ns):
-            group_info = self._extract_group_info(grp)
+            group_info = self.drawing_extractor._extract_group_info(grp)
             if group_info:
                 group_info["coordinates"] = coordinates
                 group_info["range"] = range_str
                 drawing_list.append(group_info)
 
         for cxn in anchor.findall('.//xdr:cxnSp', self.ns):
-            connector_info = self._extract_connector_info(cxn)
+            connector_info = self.drawing_extractor._extract_connector_info(cxn)
             if connector_info:
                 connector_info["coordinates"] = coordinates
                 connector_info["range"] = range_str
@@ -151,82 +151,7 @@ class ExcelMetadataExtractor:
 
 
 
-    def _extract_picture_info(self, pic, excel_zip): #Modified
-        try:
-            name_elem = pic.find('.//xdr:nvPicPr/xdr:cNvPr', self.ns)
-            if name_elem is not None:
-                image_info = {
-                    "type": "image",
-                    "name": name_elem.get('name', ''),
-                    "description": name_elem.get('descr', ''),
-                }
-
-                blip = pic.find('.//a:blip', self.ns)
-                if blip is not None:
-                    image_ref = blip.get(f'{{{self.ns["r"]}}}embed')
-                    if image_ref:
-                        image_info["image_ref"] = image_ref
-
-                        # Get image data and analyze with GPT-4 Vision
-                        try:
-                            # Get the relationship file for the current worksheet
-                            rels_path = f'xl/drawings/_rels/drawing1.xml.rels'  # Assuming drawing1.xml
-                            if rels_path in excel_zip.namelist():
-                                with excel_zip.open(rels_path) as rels_file:
-                                    rels_tree = ET.parse(rels_file)
-                                    rels_root = rels_tree.getroot()
-
-                                    # Find the target path for this image
-                                    for rel in rels_root.findall('.//{http://schemas.openxmlformats.org/package/2006/relationships}Relationship'):
-                                        if rel.get('Id') == image_ref:
-                                            image_path = rel.get('Target').replace('..', 'xl')
-                                            if image_path in excel_zip.namelist():
-                                                with excel_zip.open(image_path) as img_file:
-                                                    image_data = img_file.read()
-                                                    image_base64 = base64.b64encode(image_data).decode('utf-8')
-
-                                                    # Analyze image using GPT-4 Vision
-                                                    analysis_result = self.openai_helper.analyze_image_with_gpt4o(image_base64)
-                                                    if analysis_result:
-                                                        image_info["gpt4o_analysis"] = analysis_result
-
-                        except Exception as e:
-                            self.logger.error(f"Error analyzing image: {str(e)}")
-                            self.logger.exception(e)
-
-                        return image_info
-            return None
-        except Exception as e:
-            self.logger.error(f"Error in _extract_picture_info: {str(e)}")
-            return None
-
-    def _extract_group_info(self, grp):
-        try:
-            name_elem = grp.find('.//xdr:nvGrpSpPr/xdr:cNvPr', self.ns)
-            if name_elem is not None:
-                return {
-                    "type": "group",
-                    "name": name_elem.get('name', ''),
-                    "description": name_elem.get('descr', '')
-                }
-            return None
-        except Exception as e:
-            self.logger.error(f"Error in _extract_group_info: {str(e)}")
-            return None
-
-    def _extract_connector_info(self, cxn):
-        try:
-            name_elem = cxn.find('.//xdr:nvCxnSpPr/xdr:cNvPr', self.ns)
-            if name_elem is not None:
-                return {
-                    "type": "connector",
-                    "name": name_elem.get('name', ''),
-                    "description": name_elem.get('descr', '')
-                }
-            return None
-        except Exception as e:
-            self.logger.error(f"Error in _extract_connector_info: {str(e)}")
-            return None
+    
 
     def _parse_vml_for_controls(self, vml_content):
         """VMLコンテンツからコントロール情報を抽出"""
