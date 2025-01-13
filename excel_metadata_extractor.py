@@ -479,7 +479,12 @@ class ExcelMetadataExtractor:
                     regions.append(metadata)
 
     except Exception as e:
-                    self.logger.error(f"Error generating metadata: {str(e)}")
+            self.logger.error(f"Error generating metadata: {str(e)}")
+            self.logger.error(f"Error generating metadata: {traceback.format_exc()}")
+            self.logger.method_end("extract_all_metadata")
+            raise
+        finally:
+            self.logger.method_end("extract_all_metadata")
 
     def _is_chart_in_range(self, chart, coordinates):
         try:
