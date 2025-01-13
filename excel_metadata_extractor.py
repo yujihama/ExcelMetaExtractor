@@ -115,7 +115,11 @@ class ExcelMetadataExtractor:
                 # Extract chart data
                 chart_data = self.chart_processor.extract_chart_data(self.workbook, None)
                 if chart_data:
-                    chart_info["chart_data"] = chart_data
+                    chart_info.update({
+                        "chartType": chart_data[0].get("type", ""),
+                        "series": chart_data[0].get("series", []),
+                        "chart_data_json": json.dumps(chart_data[0])
+                    })
                 # Log chart data
                 self.logger.info(f"Extracted chart data: {json.dumps(chart_info)}")
                 drawing_list.append(chart_info)
