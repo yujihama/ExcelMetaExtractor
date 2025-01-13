@@ -495,11 +495,13 @@ class ExcelMetadataExtractor:
         except:
             return False
 
+    def detect_regions(self, sheet) -> List[Dict[str, Any]]:
+        try:
+            regions = []
+            # ... rest of the detect_regions implementation ...
             return regions
-
         except Exception as e:
             self.logger.error(f"Error in detect_regions: {str(e)}\n{traceback.format_exc()}")
-            self.logger.method_end("detect_regions")
             return []
         finally:
             self.logger.method_end("detect_regions")
