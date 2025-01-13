@@ -336,29 +336,7 @@ class ExcelMetadataExtractor:
                 connector_info["range"] = range_str
                 drawing_list.append(connector_info)
 
-    def _process_images(self, anchor, excel_zip, drawing_list):
-        for pic in anchor.findall('.//xdr:pic', self.ns):
-            image_info = self._extract_picture_info(pic, excel_zip) #Pass excel_zip
-            if image_info:
-                drawing_list.append(image_info)
-
-    def _process_charts(self, anchor, excel_zip, drawing_list):
-        chart = anchor.find('.//c:chart', self.ns)
-        if chart is not None:
-            chart_info = self._extract_chart_info(chart, excel_zip)
-            if chart_info:
-                drawing_list.append(chart_info)
-
-    def _process_other_elements(self, anchor, drawing_list):
-        for grp in anchor.findall('.//xdr:grpSp', self.ns):
-            group_info = self._extract_group_info(grp)
-            if group_info:
-                drawing_list.append(group_info)
-
-        for cxn in anchor.findall('.//xdr:cxnSp', self.ns):
-            connector_info = self._extract_connector_info(cxn)
-            if connector_info:
-                drawing_list.append(connector_info)
+    
 
     def _extract_shape_info(self, sp, anchor, vml_controls):
         """図形情報を抽出し、VMLコントロールとマッチングする"""
@@ -1041,91 +1019,7 @@ class ExcelMetadataExtractor:
 
         return cells_data
 
-    def detect_header_structure(
-            self, cells_data: List[List[Dict[str, Any]]],
-            merged_cells: List[Dict[str, Any]]) -> Dict[str, Any]:
-
-        def json_to_markdown_table(json_data, include_row_col=False):
-            try:
-                cells = json_data["cells"]
-            except (KeyError, TypeError):
-                return None
-
-            max_cols = 0
-            for row in cells:
-                max_cols = max(max_cols, max(cell["col"] for cell in row) + 1 if row else 0)
-
-            markdown = ""
-
-            if include_row_col:
-                markdown += "|       |"
-                for col in range(max_cols):
-                    markdown += f" col {col} |"
-                markdown += "\n"
-
-            for i, row_data in enumerate(cells):
-                if include_row_col:
-                    markdown += f"| row {row_data[0]['row'] if row_data else ''} |"
-                for col in range(max_cols):
-                    cell_value = ""
-                    for cell in row_data:
-                        if cell["col"] == col:
-                            cell_value = cell.get("value", "")
-                            break
-                    markdown += f" {cell_value} |"
-                markdown += "\n"
-
-            if include_row_col:
-                markdown += "\n"
-                markdown += "※Reference:\n"
-                for row_data in cells:
-                    for cell in row_data:
-                        markdown += f"* Row {cell['row']}, Col {cell['col']}: {cell.get('value', '')}\n"
-
-            return markdown
-
-        try:
-            markdown_table = json_to_markdown_table({"cells": cells_data}, include_row_col=True)
-            analysis_str = self.openai_helper.analyze_table_structure(markdown_table, merged_cells)
-
-            if isinstance(analysis_str, str):
-                analysis = json.loads(analysis_str)
-            else:
-                return {
-                    "headerType": "none",
-                    "headerRowsCount": 0,
-                    "headerRows": [],
-                    "headerRange": "N/A",
-                    "confidence": 0
-                }
-
-            header_type = analysis.get("headerStructure", {}).get("type", "none")
-            header_rows = analysis.get("headerStructure", {}).get("rows", [])
-
-            if header_rows:
-                min_row = min(header_rows)
-                max_row = max(header_rows)
-                header_range = f"{min_row}-{max_row}"
-            else:
-                header_range = "N/A"
-
-            return {
-                "headerType": header_type,
-                "headerRowsCount": len(header_rows),
-                "headerRows": header_rows,
-                "headerRange": header_range,
-                "confidence": analysis.get("confidence", 0)
-            }
-
-        except Exception as e:
-            print(f"Error in detect_header_structure: {str(e)}")
-            return {
-                "headerType": "none",
-                "headerRowsCount": 0,
-                "headerRows": [],
-                "headerRange": "N/A",
-                "confidence": 0
-            }
+    
 
     def get_sheet_metadata(self) -> list:
         try:
