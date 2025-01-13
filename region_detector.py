@@ -1,6 +1,7 @@
 
 from typing import Tuple, List, Dict, Any
 from openpyxl.utils import get_column_letter
+from logger import Logger
 
 class RegionDetector:
     def __init__(self):
