@@ -33,6 +33,7 @@ class ExcelMetadataExtractor:
         self.logger = Logger()
         self.drawing_extractor = DrawingExtractor(self.logger)
         self.chart_processor = ChartProcessor(self.logger)
+        self.cell_processor = CellProcessor(self.logger)
         self.region_analyzer = RegionAnalyzer(self.logger, self.openai_helper)
 
         # Store excel_zip for later use
@@ -572,7 +573,7 @@ class ExcelMetadataExtractor:
                         if max_row == row and max_col == col:  # 単一セルの場合はスキップ
                             continue
 
-                        cells_data = self.extract_region_cells(sheet, row, col, max_row, max_col)
+                        cells_data = self.cell_processor.extract_region_cells(sheet, row, col, max_row, max_col)
                         if not cells_data:  # 空のデータの場合はスキップ
                             continue
 
