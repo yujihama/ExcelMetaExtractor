@@ -109,13 +109,13 @@ class ExcelMetadataExtractor:
 
     def _process_shapes(self, anchor, vml_controls, drawing_list):
         for sp in anchor.findall('.//xdr:sp', self.ns):
-            shape_info = self._extract_shape_info(sp, anchor, vml_controls)
+            shape_info = self.drawing_extractor._extract_shape_info(sp, anchor, vml_controls) # moved to drawing_extractor
             if shape_info:
                 drawing_list.append(shape_info)
 
     def _process_drawings(self, anchor, excel_zip, drawing_list):
-        coordinates = self._get_coordinates(anchor)
-        range_str = self._get_range_from_coordinates(coordinates)
+        coordinates = self.drawing_extractor._get_coordinates(anchor) # moved to drawing_extractor
+        range_str = self.drawing_extractor._get_range_from_coordinates(coordinates) # moved to drawing_extractor
 
         # Process images
         for pic in anchor.findall('.//xdr:pic', self.ns):
@@ -150,180 +150,6 @@ class ExcelMetadataExtractor:
                 drawing_list.append(connector_info)
 
 
-
-    def _extract_shape_info(self, sp, anchor, vml_controls):
-        """図形情報を抽出し、VMLコントロールとマッチングする"""
-        try:
-            shape_info = {
-                "type": "shape",
-                "name": "",
-                "description": "",
-                "hidden": False,
-                "text_content": "",
-                "coordinates": self._get_coordinates(anchor),
-            }
-
-            # 図形の基本情報を取得
-            name_elem = sp.find('.//xdr:nvSpPr/xdr:cNvPr', self.ns)
-            if name_elem is not None:
-                shape_info["name"] = name_elem.get('name', '')
-                shape_info["hidden"] = name_elem.get('hidden', '0') == '1'
-                shape_info["description"] = name_elem.get('descr', '')
-                shape_id = name_elem.get('id')
-
-                if shape_id:
-                    # 座標情報をセル範囲として保存
-                    range_str = self._get_range_from_coordinates(shape_info["coordinates"])
-                    shape_info["range"] = range_str
-
-                    # IDに基づいてVMLコントロールを検索
-                    matching_control = None
-                    for control in vml_controls:
-                        if control.get('numeric_id') == shape_id:
-                            matching_control = control
-                            break
-
-                    if matching_control:
-                        shape_info.update({
-                            "text_content": matching_control.get("text", ""),
-                            "form_control_type": matching_control.get("type"),
-                            "form_control_state": matching_control.get("checked", False),
-                        })
-                        if matching_control.get("is_first_button") is not None:
-                            shape_info["is_first_button"] = matching_control["is_first_button"]
-                    else:
-                        # テキスト内容を直接取得
-                        txBody = sp.find('.//xdr:txBody//a:t', self.ns)
-                        if txBody is not None and txBody.text:
-                            shape_info["text_content"] = txBody.text
-
-            return shape_info
-        except Exception as e:
-            self.logger.error(f"Error in _extract_shape_info: {str(e)}")
-            self.logger.exception(e)
-            return None
-
-    def _get_coordinates(self, anchor):
-        coords = {"from": {"col": 0, "row": 0}, "to": {"col": 0, "row": 0}}
-
-        if anchor.tag.endswith('absoluteAnchor'):
-            pos = anchor.find('.//xdr:pos', self.ns)
-            ext = anchor.find('.//xdr:ext', self.ns)
-
-            if pos is not None and ext is not None:
-                from_col = int(int(pos.get('x', '0')) / 914400)
-                from_row = int(int(pos.get('y', '0')) / 914400)
-                to_col = from_col + int(int(ext.get('cx', '0')) / 914400)
-                to_row = from_row + int(int(ext.get('cy', '0')) / 914400)
-
-                coords = {
-                    "from": {"col": from_col, "row": from_row},
-                    "to": {"col": to_col, "row": to_row}
-                }
-        else:
-            from_elem = anchor.find('.//xdr:from', self.ns)
-            to_elem = anchor.find('.//xdr:to', self.ns) or anchor.find('.//xdr:ext', self.ns)
-
-            if from_elem is not None:
-                from_col = int(from_elem.find('xdr:col', self.ns).text)
-                from_row = int(from_elem.find('xdr:row', self.ns).text)
-
-                if to_elem is not None:
-                    if anchor.tag.endswith('twoCellAnchor'):
-                        to_col = int(to_elem.find('xdr:col', self.ns).text)
-                        to_row = int(to_elem.find('xdr:row', self.ns).text)
-                    else:  # oneCellAnchor
-                        cx = int(to_elem.get('cx', '0'))
-                        cy = int(to_elem.get('cy', '0'))
-                        to_col = from_col + (cx // 914400)
-                        to_row = from_row + (cy // 914400)
-                else:
-                    to_col = from_col + 1
-                    to_row = from_row + 1
-
-                coords = {
-                    "from": {"col": from_col, "row": from_row},
-                    "to": {"col": to_col, "row": to_row}
-                }
-
-        return coords
-
-    def _get_range_from_coordinates(self, coords):
-        from_col = get_column_letter(coords["from"]["col"] + 1)
-        to_col = get_column_letter(coords["to"]["col"] + 1)
-        return f"{from_col}{coords['from']['row'] + 1}:{to_col}{coords['to']['row'] + 1}"
-
-    def _extract_chart_info(self, chart, excel_zip):
-        try:
-            chart_ref = chart.get(f'{{{self.ns["r"]}}}id')
-            output_dir = os.path.join(tempfile.gettempdir(), 'chart_images')
-            os.makedirs(output_dir, exist_ok=True)
-
-            with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as temp_file:
-                self.file_obj.seek(0)
-                temp_file.write(self.file_obj.read())
-                chart_data_list = self.extract_chart_data(temp_file.name, output_dir)
-                chart_data_json = self.recreate_charts(chart_data_list, output_dir)
-                os.unlink(temp_file.name)
-
-            chart_info = {
-                "type": "chart",
-                "chart_ref": chart_ref,
-                "chart_data_json": chart_data_json
-            }
-
-            ref_num = re.search(r'rId(\d+)', chart_ref)
-            if ref_num:
-                chart_xml_path = f'xl/charts/chart{ref_num.group(1)}.xml'
-                if chart_xml_path in excel_zip.namelist():
-                    with excel_zip.open(chart_xml_path) as chart_xml_file:
-                        chart_tree = ET.parse(chart_xml_file)
-                        chart_root = chart_tree.getroot()
-
-                        chart_info.update(self._extract_chart_metadata(chart_root))
-
-            return chart_info
-        except Exception as e:
-            self.logger.error(f"Error in _extract_chart_info: {str(e)}")
-            return None
-
-    def _extract_chart_metadata(self, chart_root):
-        metadata = {}
-
-        # チャートタイプの取得
-        for elem in chart_root.findall('.//c:plotArea/*', self.ns):
-            for chart_type in ['barChart', 'pieChart', 'lineChart']:
-                if elem.tag.endswith(chart_type):
-                    metadata["chartType"] = chart_type.replace('Chart', '')
-                    break
-            if "chartType" in metadata:
-                break
-
-        # タイトルの取得
-        title = chart_root.find('.//c:title//c:tx//c:rich//a:t', self.ns)
-        if title is not None and title.text:
-            metadata["title"] = title.text
-
-        # データ系列の取得
-        series_list = []
-        for series in chart_root.findall('.//c:ser', self.ns):
-            series_info = {}
-
-            series_name = series.find('.//c:tx//c:f', self.ns)
-            if series_name is not None:
-                series_info["name"] = series_name.text
-
-            values = series.find('.//c:val//c:numRef//c:f', self.ns)
-            if values is not None:
-                series_info["data_range"] = values.text
-
-            if series_info:
-                series_list.append(series_info)
-
-        if series_list:
-            metadata["series"] = series_list
-
-        return metadata
 
     def _extract_picture_info(self, pic, excel_zip): #Modified
         try:
