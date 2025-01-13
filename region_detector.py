@@ -32,15 +32,28 @@ class RegionDetector:
         # Find the right boundary
         current_col = start_col
         while current_col <= sheet.max_column:
-            if sheet.cell(row=start_row, column=current_col).value is not None:
+            # 列全体が空かどうかをチェック
+            col_empty = True
+            for check_row in range(start_row, max_row + 1):
+                if sheet.cell(row=check_row, column=current_col).value is not None:
+                    col_empty = False
+                    break
+            
+            if not col_empty:
                 max_col = current_col
                 current_col += 1
             else:
                 # Check next few columns to confirm end of region
                 empty_cols = 0
                 for i in range(3):
-                    if current_col + i <= sheet.max_column and sheet.cell(row=start_row, column=current_col + i).value is None:
-                        empty_cols += 1
+                    if current_col + i <= sheet.max_column:
+                        next_col_empty = True
+                        for check_row in range(start_row, max_row + 1):
+                            if sheet.cell(row=check_row, column=current_col + i).value is not None:
+                                next_col_empty = False
+                                break
+                        if next_col_empty:
+                            empty_cols += 1
                 if empty_cols == 3:
                     break
                 current_col += 1
