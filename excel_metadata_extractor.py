@@ -26,6 +26,15 @@ class ExcelMetadataExtractor:
         self.workbook = load_workbook(file_obj, data_only=True)
         self.openai_helper = OpenAIHelper()
         self.MAX_CELLS_PER_ANALYSIS = 100
+
+        # Store excel_zip for later use
+        temp_dir = tempfile.mkdtemp()
+        temp_zip = os.path.join(temp_dir, 'temp.xlsx')
+        with open(temp_zip, 'wb') as f:
+            self.file_obj.seek(0)
+            f.write(self.file_obj.read())
+        self.excel_zip = zipfile.ZipFile(temp_zip, 'r')
+
         self.ns = {
             'a': 'http://schemas.openxmlformats.org/drawingml/2006/main',
             'xdr': 'http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing',
@@ -297,7 +306,7 @@ class ExcelMetadataExtractor:
 
         # Process images
         for pic in anchor.findall('.//xdr:pic', self.ns):
-            image_info = self._extract_picture_info(pic)
+            image_info = self._extract_picture_info(pic, excel_zip) #Pass excel_zip
             if image_info:
                 image_info["coordinates"] = coordinates
                 image_info["range"] = range_str
@@ -329,7 +338,7 @@ class ExcelMetadataExtractor:
 
     def _process_images(self, anchor, excel_zip, drawing_list):
         for pic in anchor.findall('.//xdr:pic', self.ns):
-            image_info = self._extract_picture_info(pic)
+            image_info = self._extract_picture_info(pic, excel_zip) #Pass excel_zip
             if image_info:
                 drawing_list.append(image_info)
 
@@ -524,7 +533,7 @@ class ExcelMetadataExtractor:
 
         return metadata
 
-    def _extract_picture_info(self, pic):
+    def _extract_picture_info(self, pic, excel_zip): #Modified
         try:
             name_elem = pic.find('.//xdr:nvPicPr/xdr:cNvPr', self.ns)
             if name_elem is not None:
@@ -539,6 +548,35 @@ class ExcelMetadataExtractor:
                     image_ref = blip.get(f'{{{self.ns["r"]}}}embed')
                     if image_ref:
                         image_info["image_ref"] = image_ref
+
+                        # Get image data and analyze with GPT-4 Vision
+                        try:
+                            # Get the relationship file for the current worksheet
+                            rels_path = f'xl/drawings/_rels/drawing1.xml.rels'  # Assuming drawing1.xml
+                            if rels_path in excel_zip.namelist():
+                                with excel_zip.open(rels_path) as rels_file:
+                                    rels_tree = ET.parse(rels_file)
+                                    rels_root = rels_tree.getroot()
+
+                                    # Find the target path for this image
+                                    for rel in rels_root.findall('.//{http://schemas.openxmlformats.org/package/2006/relationships}Relationship'):
+                                        if rel.get('Id') == image_ref:
+                                            image_path = rel.get('Target').replace('..', 'xl')
+                                            if image_path in excel_zip.namelist():
+                                                with excel_zip.open(image_path) as img_file:
+                                                    image_data = img_file.read()
+                                                    image_base64 = base64.b64encode(image_data).decode('utf-8')
+
+                                                    # Analyze image using GPT-4 Vision
+                                                    analysis_result = self.openai_helper.analyze_image_with_gpt4o(image_base64)
+                                                    if analysis_result:
+                                                        image_info["gpt4o_analysis"] = analysis_result
+                                                        print(f"\nImage analysis result: {json.dumps(analysis_result, indent=2)}")
+
+                        except Exception as e:
+                            print(f"Error analyzing image: {str(e)}")
+                            print(traceback.format_exc())
+
                         return image_info
             return None
         except Exception as e:
@@ -678,28 +716,32 @@ class ExcelMetadataExtractor:
                             region_info = {
                                 "regionType": drawing_type,
                                 "type": drawing_type,
-                                "range": drawing["range"],
+                                "range": drawing.get("range", ""),
                                 "name": drawing.get("name", ""),
                                 "description": drawing.get("description", ""),
-                                "coordinates": drawing["coordinates"],
+                                "coordinates": drawing.get("coordinates", {}),
                                 "text_content": drawing.get("text_content", ""),
                                 "chartType": drawing.get("chartType", ""),
                                 "series": drawing.get("series", ""),
                                 "chart_data_json": drawing.get("chart_data_json", "")
                             }
 
-                            if drawing_type == "image" and "image_ref" in drawing:
-                                region_info["image_ref"] = drawing["image_ref"]
+                            if drawing_type == "image":
+                                if "image_ref" in drawing:
+                                    region_info["image_ref"] = drawing["image_ref"]
                                 if "gpt4o_analysis" in drawing:
                                     region_info["gpt4o_analysis"] = drawing["gpt4o_analysis"]
+                                    print(f"\nGPT-4 Vision analysis result: {json.dumps(drawing['gpt4o_analysis'], indent=2)}")
+                                else:
+                                    print("No GPT-4 Vision analysis found for image")
+
                             elif drawing_type == "smartart" and "diagram_type" in drawing:
                                 region_info["diagram_type"] = drawing["diagram_type"]
-                            elif drawing_type == "chart" and "chart_ref" in drawing:
-                                region_info["chart_ref"] = drawing["chart_ref"]
 
+                            # フォームコントロール情報の追加
                             if "form_control_type" in drawing:
                                 region_info["form_control_type"] = drawing["form_control_type"]
-                                region_info["form_control_state"] = drawing["form_control_state"]
+                                region_info["form_control_state"] = drawing.get("form_control_state", False)
                                 if "is_first_button" in drawing:
                                     region_info["is_first_button"] = drawing["is_first_button"]
 
@@ -713,8 +755,9 @@ class ExcelMetadataExtractor:
 
                             for r in range(from_row, to_row + 1):
                                 for c in range(from_col, to_col + 1):
-                                    processed_cells.add(f"{get_column_letter(c)}{r}")
+                                    processed_cells.add(f"{get_column_letter(c+1)}{r+1}")
 
+            # セル領域の処理
             for row in range(1, min(sheet.max_row + 1, 100)):
                 for col in range(1, min(sheet.max_column + 1, 20)):
                     cell_coord = f"{get_column_letter(col)}{row}"
@@ -740,6 +783,7 @@ class ExcelMetadataExtractor:
                             "cells": cells_data,
                             "mergedCells": merged_cells
                         }))
+
                     if isinstance(region_analysis, str):
                         region_analysis = json.loads(region_analysis)
 
@@ -770,7 +814,7 @@ class ExcelMetadataExtractor:
                         region_metadata["headerStructure"] = {
                             "headerType": header_structure.get("headerType", "none"),
                             "headerRowsCount": header_structure.get("headerRowsCount", 0),
-                            "headerRows": header_structure.get("headerRows", 0),
+                            "headerRows": header_structure.get("headerRows", []),
                             "headerRange": header_range,
                             "mergedCells": bool(merged_cells),
                             "start_row": row
@@ -781,6 +825,7 @@ class ExcelMetadataExtractor:
                     if len(regions) >= 10:
                         return regions
 
+            # サマリーの生成
             for idx, region in enumerate(drawing_regions + cell_regions):
                 if "regionType" not in region:
                     region["regionType"] = region.get("type", "unknown")
@@ -809,9 +854,11 @@ class ExcelMetadataExtractor:
                 regions.append(metadata)
 
             return regions
+
         except Exception as e:
-            print(f"Error in detect_regions: {str(e)}\n{traceback.format_exc()}")
-            raise
+            print(f"Error in detect_regions: {str(e)}")
+            print(traceback.format_exc())
+            return []
 
     def get_file_metadata(self) -> Dict[str, Any]:
         try:
