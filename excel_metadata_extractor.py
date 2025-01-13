@@ -113,14 +113,23 @@ class ExcelMetadataExtractor:
                 chart_info["coordinates"] = coordinates
                 chart_info["range"] = range_str
                 # Extract chart data
-                chart_data = self.chart_processor.extract_chart_data(self.workbook, None)
-                if chart_data:
-                    chart_info.update({
-                        "chartType": chart_data[0].get("type", ""),
-                        "series": chart_data[0].get("series", []),
-                        "chart_data_json": json.dumps(chart_data[0])
-                    })
-                # Log chart data
+                self.logger.debug("Extracting chart data from workbook")
+                for sheet in self.workbook.worksheets:
+                    for chart in sheet._charts:
+                        if self._is_chart_in_range(chart, coordinates):
+                            title = self.chart_processor._get_chart_title(chart)
+                            chart_type = type(chart).__name__
+                            self.logger.info(f"Found chart: {title} of type {chart_type}")
+                            chart_info.update({
+                                "name": title,
+                                "chartType": chart_type,
+                                "chart_data_json": json.dumps({
+                                    "type": chart_type,
+                                    "title": title
+                                })
+                            })
+                            break
+                
                 self.logger.info(f"Extracted chart data: {json.dumps(chart_info)}")
                 drawing_list.append(chart_info)
             else:
@@ -467,6 +476,21 @@ class ExcelMetadataExtractor:
                     }
 
                     metadata["summary"] = self.openai_helper.generate_sheet_summary(sheet_data)
+
+    def _is_chart_in_range(self, chart, coordinates):
+        try:
+            chart_anchor = chart._chart_pos
+            if not chart_anchor:
+                return False
+                
+            chart_from_col = chart_anchor.from_col or 0
+            chart_from_row = chart_anchor.from_row or 0
+            
+            return (chart_from_col >= coordinates["from"]["col"] and 
+                    chart_from_row >= coordinates["from"]["row"])
+        except:
+            return False
+
                     regions.append(metadata)
                 except Exception as e:
                     self.logger.error(f"Error generating metadata: {str(e)}")
