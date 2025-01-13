@@ -9,9 +9,9 @@ from openpyxl.utils import get_column_letter
 from openai_helper import OpenAIHelper
 
 class DrawingExtractor:
-    def __init__(self, logger: Logger, openai_helper: OpenAIHelper):
+    def __init__(self, logger: Logger):
         self.logger = logger
-        self.openai_helper = openai_helper
+        self.openai_helper = OpenAIHelper()
         self.ns = {
             'a': 'http://schemas.openxmlformats.org/drawingml/2006/main',
             'xdr': 'http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing',
@@ -164,22 +164,7 @@ class DrawingExtractor:
         to_col = get_column_letter(coords["to"]["col"] + 1)
         return f"{from_col}{coords['from']['row'] + 1}:{to_col}{coords['to']['row'] + 1}"
 
-    def _get_vml_controls(self, excel_zip):
-        vml_controls = []
-        vml_files = [f for f in excel_zip.namelist() if f.startswith('xl/drawings/') and f.endswith('.vml')]
-
-        for vml_file in vml_files:
-            try:
-                with excel_zip.open(vml_file) as f:
-                    vml_content = f.read().decode('utf-8')
-                    controls = self._parse_vml_for_controls(vml_content)
-                    vml_controls.extend(controls)
-            except Exception as e:
-                self.logger.error(f"Error processing VML file {vml_file}: {str(e)}")
-
-        return vml_controls
-
-    def extract_drawing_info(self, sheet, excel_zip, drawing_path) -> List[Dict[str, Any]]:
+    def extract_drawing_info(self, sheet, excel_zip, drawing_path, openai_helper) -> List[Dict[str, Any]]:
         self.logger.method_start("extract_drawing_info")
         drawing_list = []
         try:
@@ -197,7 +182,7 @@ class DrawingExtractor:
 
                 for anchor in anchors:
                     self._process_shapes(anchor, vml_controls, drawing_list)
-                    self._process_drawings(anchor, excel_zip, drawing_list)
+                    self._process_drawings(anchor, excel_zip, drawing_list, openai_helper)
 
         except Exception as e:
             self.logger.error(f"Error in extract_drawing_info: {str(e)}")
@@ -231,112 +216,6 @@ class DrawingExtractor:
         except Exception as e:
             self.logger.error(f"Error in _extract_connector_info: {str(e)}")
             return None
-
-    def _parse_vml_for_controls(self, vml_content):
-        controls = []
-        try:
-            namespaces = {
-                'v': 'urn:schemas-microsoft-com:vml',
-                'o': 'urn:schemas-microsoft-com:office:office',
-                'x': 'urn:schemas-microsoft-com:office:excel'
-            }
-
-            root = ET.fromstring(vml_content)
-            control_elements = root.findall('.//{urn:schemas-microsoft-com:vml}shape')
-
-            for element in control_elements:
-                try:
-                    textbox = element.find('.//v:textbox', namespaces)
-                    text_content = ""
-                    if textbox is not None:
-                        div = textbox.find('.//div')
-                        if div is not None:
-                            text_content = "".join(div.itertext()).strip()
-
-                    control_type = element.find('.//{urn:schemas-microsoft-com:office:excel}ClientData')
-                    if control_type is not None:
-                        control_type_value = control_type.get('ObjectType')
-
-                        shape_id = element.get('id', '')
-                        try:
-                            numeric_id = shape_id.split('_s')[-1]
-                            numeric_id = int(numeric_id) if numeric_id.isdigit() else None
-                        except (ValueError, IndexError) as e:
-                            self.logger.error(f"Error extracting numeric ID from shape_id {shape_id}: {str(e)}")
-                            continue
-
-                        control = {
-                            'id': shape_id,
-                            'numeric_id': str(numeric_id) if numeric_id is not None else None,
-                            'type': 'checkbox' if control_type_value == 'Checkbox' else 'radio',
-                            'checked': False,
-                            'position': '',
-                            'text': text_content
-                        }
-
-                        checked = control_type.find('.//{urn:schemas-microsoft-com:office:excel}Checked')
-                        if checked is not None and checked.text:
-                            control['checked'] = checked.text == '1'
-
-                        if control_type_value == 'Radio':
-                            first_button = control_type.find('.//{urn:schemas-microsoft-com:office:excel}FirstButton')
-                            if first_button is not None:
-                                control['is_first_button'] = first_button.text == '1'
-
-                        controls.append(control)
-
-                except Exception as control_error:
-                    self.logger.error(f"Error processing individual control: {str(control_error)}")
-                    continue
-
-        except Exception as e:
-            self.logger.error(f"Error parsing VML content: {str(e)}")
-            return []
-
-        return controls
-
-    def _process_shapes(self, anchor, vml_controls, drawing_list):
-        for sp in anchor.findall('.//xdr:sp', self.ns):
-            shape_info = self._extract_shape_info(sp, anchor, vml_controls)
-            if shape_info:
-                drawing_list.append(shape_info)
-
-    def _process_drawings(self, anchor, excel_zip, drawing_list):
-        coordinates = self._get_coordinates(anchor)
-        range_str = self._get_range_from_coordinates(coordinates)
-
-        # Process images
-        for pic in anchor.findall('.//xdr:pic', self.ns):
-            image_info = self.extract_picture_info(pic, excel_zip, self.ns)
-            if image_info:
-                image_info["coordinates"] = coordinates
-                image_info["range"] = range_str
-                drawing_list.append(image_info)
-
-        # Process charts
-        chart = anchor.find('.//c:chart', self.ns)
-        if chart is not None:
-            chart_info = {
-                "type": "chart",
-                "coordinates": coordinates,
-                "range": range_str
-            }
-            drawing_list.append(chart_info)
-
-        # Process other elements
-        for grp in anchor.findall('.//xdr:grpSp', self.ns):
-            group_info = self._extract_group_info(grp)
-            if group_info:
-                group_info["coordinates"] = coordinates
-                group_info["range"] = range_str
-                drawing_list.append(group_info)
-
-        for cxn in anchor.findall('.//xdr:cxnSp', self.ns):
-            connector_info = self._extract_connector_info(cxn)
-            if connector_info:
-                connector_info["coordinates"] = coordinates
-                connector_info["range"] = range_str
-                drawing_list.append(connector_info)
 
     def extract_picture_info(self, pic, excel_zip, ns): 
         try:

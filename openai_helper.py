@@ -26,7 +26,7 @@ class OpenAIHelper:
                           "ヘッダー構造: %s\n"
                           "データサンプル: %s") % (
                               json.dumps(header_structure, ensure_ascii=False),
-                              json.dumps(cells, ensure_ascii=False))
+                              json.dumps(cells[:2], ensure_ascii=False))
             elif region["regionType"] == "chart":
                 series_info = region.get('series', [])
                 data_range = series_info[0].get('data_range') if series_info else 'N/A'

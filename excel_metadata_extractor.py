@@ -10,7 +10,7 @@ from drawing_extractor import DrawingExtractor
 from region_analyzer import RegionAnalyzer
 import openpyxl.cell.cell
 from openpyxl.utils import get_column_letter
-from typing import Dict, Any, List, Optional, Tuple, Set
+from typing import Dict, Any, List, Optional, Tuple
 from openai_helper import OpenAIHelper
 from chart_processor import ChartProcessor
 from cell_processor import CellProcessor
@@ -32,7 +32,7 @@ class ExcelMetadataExtractor:
         self.openai_helper = OpenAIHelper()
         self.MAX_CELLS_PER_ANALYSIS = 100
         self.logger = Logger()
-        self.drawing_extractor = DrawingExtractor(self.logger, self.openai_helper) # Added openai_helper
+        self.drawing_extractor = DrawingExtractor(self.logger)
         self.chart_processor = ChartProcessor(self.logger)
         self.cell_processor = CellProcessor(self.logger)
         self.region_analyzer = RegionAnalyzer(self.logger, self.openai_helper)
@@ -67,7 +67,29 @@ class ExcelMetadataExtractor:
         return self.chart_processor.recreate_charts(chart_data_list, output_dir)
 
     def extract_drawing_info(self, sheet, excel_zip, drawing_path) -> List[Dict[str, Any]]:
-        return self.drawing_extractor.extract_drawing_info(sheet, excel_zip, drawing_path)
+        self.logger.method_start("extract_drawing_info")
+        drawing_list = []
+        try:
+            vml_controls = self._get_vml_controls(excel_zip)
+
+            with excel_zip.open(drawing_path) as xml_file:
+                tree = ET.parse(xml_file)
+                root = tree.getroot()
+
+                anchors = (
+                    root.findall('.//xdr:twoCellAnchor', self.ns) +
+                    root.findall('.//xdr:oneCellAnchor', self.ns) +
+                    root.findall('.//xdr:absoluteAnchor', self.ns)
+                )
+
+                for anchor in anchors:
+                    self._process_shapes(anchor, vml_controls, drawing_list)
+                    self._process_drawings(anchor, excel_zip, drawing_list)
+
+        except Exception as e:
+            self.logger.error(f"Error in extract_drawing_info: {str(e)}")
+
+        return drawing_list
 
     def _get_vml_controls(self, excel_zip):
         vml_controls = []
@@ -81,7 +103,7 @@ class ExcelMetadataExtractor:
                     vml_controls.extend(controls) #extend the list instead of overwriting.
             except Exception as e:
                 self.logger.error(f"Error processing VML file {vml_file}: {str(e)}")
-                self.logger.error(f"Error processing VML file {vml_file}: {traceback.format_exc()}") # added traceback
+                self.logger.exception(e)
 
         return vml_controls
 
@@ -112,24 +134,7 @@ class ExcelMetadataExtractor:
             if chart_info:
                 chart_info["coordinates"] = coordinates
                 chart_info["range"] = range_str
-                # Extract chart data
-                self.logger.debug("Extracting chart data from workbook")
-                for sheet in self.workbook.worksheets:
-                    for chart in sheet._charts:
-                        if self._is_chart_in_range(chart, coordinates):
-                            title = self.chart_processor._get_chart_title(chart)
-                            chart_type = type(chart).__name__
-                            self.logger.info(f"Found chart: {title} of type {chart_type}")
-                            chart_info.update({
-                                "name": title,
-                                "chartType": chart_type,
-                                "chart_data_json": json.dumps({
-                                    "type": chart_type,
-                                    "title": title
-                                })
-                            })
-                            break
-                
+                # Log chart data
                 self.logger.info(f"Extracted chart data: {json.dumps(chart_info)}")
                 drawing_list.append(chart_info)
             else:
@@ -234,59 +239,9 @@ class ExcelMetadataExtractor:
 
         except Exception as e:
             self.logger.error(f"Error parsing VML content: {str(e)}")
-            self.logger.error(f"Error parsing VML content: {traceback.format_exc()}") # added traceback
-            return []
+            self.logger.exception(e)
 
-    def _process_drawing_regions(self, sheet, excel_zip, sheet_drawing_map) -> Tuple[List[Dict[str, Any]], Set[str]]:
-        drawing_regions = []
-        processed_cells = set()
-
-        sheet_name = sheet.title
-        if sheet_name in sheet_drawing_map:
-            drawing_path = sheet_drawing_map[sheet_name]
-            drawings = self.extract_drawing_info(sheet, excel_zip, drawing_path)
-
-            for drawing in drawings:
-                region_info = self._create_region_info(drawing)
-                drawing_regions.append(region_info)
-                processed_cells.update(self._get_processed_cells(drawing))
-
-        return drawing_regions, processed_cells
-
-    def _create_region_info(self, drawing: Dict[str, Any]) -> Dict[str, Any]:
-        drawing_type = drawing["type"]
-        region_info = {
-            "regionType": drawing_type,
-            "type": drawing_type,
-            "range": drawing.get("range", ""),
-            "name": drawing.get("name", ""),
-            "description": drawing.get("description", ""),
-            "coordinates": drawing.get("coordinates", {}),
-            "text_content": drawing.get("text_content", ""),
-            "chartType": drawing.get("chartType", ""),
-            "series": drawing.get("series", ""),
-            "chart_data_json": drawing.get("chart_data_json", "")
-        }
-
-        if drawing_type == "image":
-            if "image_ref" in drawing:
-                region_info["image_ref"] = drawing["image_ref"]
-            if "gpt4o_analysis" in drawing:
-                region_info["gpt4o_analysis"] = drawing["gpt4o_analysis"]
-
-        elif drawing_type == "smartart" and "diagram_type" in drawing:
-            region_info["diagram_type"] = drawing["diagram_type"]
-
-        if "form_control_type" in drawing:
-            region_info["form_control_type"] = drawing["form_control_type"]
-            region_info["form_control_state"] = drawing.get("form_control_state", False)
-            if "is_first_button" in drawing:
-                region_info["is_first_button"] = drawing["is_first_button"]
-
-        return region_info
-
-
-
+        return controls
 
     def detect_regions(self, sheet) -> List[Dict[str, Any]]:
         self.logger.method_start("detect_regions")
@@ -479,36 +434,13 @@ class ExcelMetadataExtractor:
                     regions.append(metadata)
                 except Exception as e:
                     self.logger.error(f"Error generating metadata: {str(e)}")
-                    self.logger.error(f"Error generating metadata: {traceback.format_exc()}")
 
             return regions
-            self.logger.error(f"Error generating metadata: {str(e)}")
-            self.logger.error(f"Error generating metadata: {traceback.format_exc()}")
-            self.logger.method_end("extract_all_metadata")
-            raise
-        finally:
-            self.logger.method_end("extract_all_metadata")
 
-    def _is_chart_in_range(self, chart, coordinates):
-        try:
-            chart_anchor = chart._chart_pos
-            if not chart_anchor:
-                return False
-                
-            chart_from_col = chart_anchor.from_col or 0
-            chart_from_row = chart_anchor.from_row or 0
-            
-            return (chart_from_col >= coordinates["from"]["col"] and 
-                    chart_from_row >= coordinates["from"]["row"])
-        except:
-            return False
-
-    def detect_regions(self, sheet) -> List[Dict[str, Any]]:
-        try:
-            regions = []
-            return regions
         except Exception as e:
-            self.logger.error(f"Error in detect_regions: {str(e)}\n{traceback.format_exc()}")
+            self.logger.error(f"Error in detect_regions: {str(e)}")
+            self.logger.exception(e)
+            self.logger.method_end("detect_regions")
             return []
         finally:
             self.logger.method_end("detect_regions")
@@ -530,7 +462,7 @@ class ExcelMetadataExtractor:
             }
         except Exception as e:
             self.logger.error(f"Error in get_file_metadata: {str(e)}")
-            self.logger.error(f"Error in get_file_metadata: {traceback.format_exc()}") # added traceback
+            self.logger.exception(e)
             raise
 
     def find_region_boundaries(self, sheet, start_row: int, start_col: int) -> Tuple[int, int]:
@@ -612,7 +544,7 @@ class ExcelMetadataExtractor:
             return sheets_metadata
         except Exception as e:
             self.logger.error(f"Error in get_sheet_metadata: {str(e)}")
-            self.logger.error(f"Error in get_sheet_metadata: {traceback.format_exc()}") # added traceback
+            self.logger.exception(e)
             raise
 
     def extract_all_metadata(self) -> Dict[str, Any]:
@@ -636,7 +568,7 @@ class ExcelMetadataExtractor:
             return metadata
         except Exception as e:
             self.logger.error(f"Error in extract_all_metadata: {str(e)}")
-            self.logger.error(f"Error in extract_all_metadata: {traceback.format_exc()}") # added traceback
+            self.logger.exception(e)
             self.logger.method_end("extract_all_metadata")
             raise
         finally:
