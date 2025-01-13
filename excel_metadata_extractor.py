@@ -8,7 +8,7 @@ from openpyxl import load_workbook
 import openpyxl.cell.cell
 from openpyxl.utils import get_column_letter
 from typing import Dict, Any, List, Optional, Tuple
-from ExcelMetaExtractor.openai_helper import OpenAIHelper
+from openai_helper import OpenAIHelper
 import traceback
 from pathlib import Path
 import tempfile
@@ -427,10 +427,13 @@ class ExcelMetadataExtractor:
             print(f"Available files in zip: {excel_zip.namelist()}")
 
             # VMLファイルを探す
-            vml_files = [f for f in excel_zip.namelist() if f.startswith('xl/drawings/') and f.endswith('.vml')]
+            vml_files = [
+                f for f in excel_zip.namelist()
+                if f.startswith('xl/drawings/') and f.endswith('.vml')
+            ]
             print(f"\nFound VML files: {vml_files}")
             vml_controls = {}
-            
+
             # VMLファイルからコントロール情報を抽出
             for vml_file in vml_files:
                 try:
@@ -439,11 +442,15 @@ class ExcelMetadataExtractor:
                         vml_content = f.read().decode('utf-8')
                         print(f"VML content length: {len(vml_content)} bytes")
                         controls = self._parse_vml_for_controls(vml_content)
-                        print(f"Extracted controls from VML: {json.dumps(controls, indent=2)}")
+                        print(
+                            f"Extracted controls from VML: {json.dumps(controls, indent=2)}"
+                        )
                         for control in controls:
                             key = f"{control['position']}"
                             vml_controls[key] = control
-                            print(f"Added control with key {key}: {json.dumps(control, indent=2)}")
+                            print(
+                                f"Added control with key {key}: {json.dumps(control, indent=2)}"
+                            )
                 except Exception as e:
                     print(f"Error processing VML file {vml_file}: {str(e)}")
                     print(traceback.format_exc())
@@ -469,7 +476,8 @@ class ExcelMetadataExtractor:
                     for idx, sp in enumerate(sp_list, 1):
                         shape_count += 1
                         print(f"\nProcessing shape #{shape_count}")
-                        shape_info = self._extract_shape_info(sp, anchor, vml_controls)
+                        shape_info = self._extract_shape_info(
+                            sp, anchor, vml_controls)
                         if shape_info:
                             print(
                                 f"Extracted shape info: {json.dumps(shape_info, indent=2)}"
@@ -691,7 +699,8 @@ class ExcelMetadataExtractor:
         print(f"\nTotal drawings extracted: {len(drawing_list)}")
         return drawing_list
 
-    def _extract_shape_info(self, sp_elem, anchor, vml_controls) -> Optional[Dict[str, Any]]:
+    def _extract_shape_info(self, sp_elem, anchor,
+                            vml_controls) -> Optional[Dict[str, Any]]:
         """Extract information from a shape element (xdr:sp)"""
         try:
             # 非表示情報を取得 (xdr:nvSpPr)
@@ -727,11 +736,17 @@ class ExcelMetadataExtractor:
 
             # 基本情報の構築
             shape_info = {
-                "type": "shape",
-                "name": cnv_pr.get('name', ''),
-                "description": cnv_pr.get('descr', ''),
-                "hidden": nv_sp_pr.find('.//xdr:cNvSpPr', self.ns).get('hidden', 'false') == 'true',
-                "text_content": text_content
+                "type":
+                "shape",
+                "name":
+                cnv_pr.get('name', ''),
+                "description":
+                cnv_pr.get('descr', ''),
+                "hidden":
+                nv_sp_pr.find('.//xdr:cNvSpPr',
+                              self.ns).get('hidden', 'false') == 'true',
+                "text_content":
+                text_content
             }
 
             # アンカーから座標情報を取得
@@ -784,18 +799,26 @@ class ExcelMetadataExtractor:
 
                 # VMLから状態を取得（IDベースのマッチング）
                 print(f"Looking for VML control with ID: {shape_id}")
-                vml_control = next((ctrl for ctrl in vml_controls.values() if ctrl.get('id') == shape_id), None)
-                print(f"Found VML control: {json.dumps(vml_control, indent=2) if vml_control else 'None'}")
-                
+                vml_control = next((ctrl for ctrl in vml_controls.values()
+                                    if ctrl.get('id') == shape_id), None)
+                print(
+                    f"Found VML control: {json.dumps(vml_control, indent=2) if vml_control else 'None'}"
+                )
+
                 if vml_control:
                     # フォームコントロール情報を追加
                     shape_info.update({
-                        "form_control_type": vml_control['type'],
-                        "form_control_state": vml_control['checked']
+                        "form_control_type":
+                        vml_control['type'],
+                        "form_control_state":
+                        vml_control['checked']
                     })
                     if 'is_first_button' in vml_control:
-                        shape_info['is_first_button'] = vml_control['is_first_button']
-                    print(f"Updated shape info with form control state: {json.dumps(shape_info, indent=2)}")
+                        shape_info['is_first_button'] = vml_control[
+                            'is_first_button']
+                    print(
+                        f"Updated shape info with form control state: {json.dumps(shape_info, indent=2)}"
+                    )
 
             return shape_info
 
@@ -862,7 +885,8 @@ class ExcelMetadataExtractor:
 
             # 画像参照情報を取得
             blip = pic_elem.find('.//a:blip', self.ns)
-            image_ref = blip.get(f'{{{self.ns["r"]}}}embed') if blip is not None else None
+            image_ref = blip.get(
+                f'{{{self.ns["r"]}}}embed') if blip is not None else None
             print(f"Found image_ref: {image_ref}")
 
             # 画像データの取得と分析
@@ -877,32 +901,41 @@ class ExcelMetadataExtractor:
                     with zipfile.ZipFile(temp_zip, 'r') as excel_zip:
                         # シートとdrawingの関連付けを取得
                         print("Getting sheet-drawing relations")
-                        sheet_drawing_map = self.get_sheet_drawing_relations(excel_zip)
+                        sheet_drawing_map = self.get_sheet_drawing_relations(
+                            excel_zip)
                         print(f"Sheet-drawing map: {sheet_drawing_map}")
-                        
+
                         # 現在のシートに対応するdrawingファイルを探す
-                        for sheet_name, drawing_path in sheet_drawing_map.items():
+                        for sheet_name, drawing_path in sheet_drawing_map.items(
+                        ):
                             # drawing.xmlに対応する_relsファイルのパスを生成
                             drawing_dir = os.path.dirname(drawing_path)
                             drawing_base = os.path.basename(drawing_path)
                             rels_path = f'{drawing_dir}/_rels/{drawing_base}.rels'
                             print(f"Checking rels_path: {rels_path}")
-                            
+
                             if rels_path in excel_zip.namelist():
                                 print(f"Found rels file: {rels_path}")
                                 with excel_zip.open(rels_path) as rels_file:
                                     rels_tree = ET.parse(rels_file)
                                     rels_root = rels_tree.getroot()
-                                    
+
                                     # 画像ファイルの関係性をマッピング
                                     image_rels = {}
-                                    for rel in rels_root.findall('.//pr:Relationship', self.ns):
-                                        if 'image' in rel.get('Type', '').lower():
-                                            image_rels[rel.get('Id')] = rel.get('Target')
-                                    print(f"Found image relationships: {image_rels}")
+                                    for rel in rels_root.findall(
+                                            './/pr:Relationship', self.ns):
+                                        if 'image' in rel.get('Type',
+                                                              '').lower():
+                                            image_rels[rel.get(
+                                                'Id')] = rel.get('Target')
+                                    print(
+                                        f"Found image relationships: {image_rels}"
+                                    )
 
                                     if image_ref in image_rels:
-                                        print(f"Found matching image_ref: {image_ref}")
+                                        print(
+                                            f"Found matching image_ref: {image_ref}"
+                                        )
                                         image_path = image_rels[image_ref]
                                         # 相対パスを正しく解決
                                         if image_path.startswith('../'):
@@ -914,30 +947,48 @@ class ExcelMetadataExtractor:
 
                                         # 画像ファイルを抽出
                                         try:
-                                            image_data = excel_zip.read(image_path)
-                                            print(f"Successfully read image data, size: {len(image_data)} bytes")
-                                            
+                                            image_data = excel_zip.read(
+                                                image_path)
+                                            print(
+                                                f"Successfully read image data, size: {len(image_data)} bytes"
+                                            )
+
                                             # 画像をbase64エンコード
-                                            base64_image = base64.b64encode(image_data).decode('utf-8')
-                                            print("Successfully encoded image to base64")
-                                            
+                                            base64_image = base64.b64encode(
+                                                image_data).decode('utf-8')
+                                            print(
+                                                "Successfully encoded image to base64"
+                                            )
+
                                             # GPT-4oで画像を分析
-                                            analysis_result = self.openai_helper.analyze_image_with_gpt4o(base64_image)
-                                            print(f"GPT-4o Analysis result: {analysis_result}")
+                                            analysis_result = self.openai_helper.analyze_image_with_gpt4o(
+                                                base64_image)
+                                            print(
+                                                f"GPT-4o Analysis result: {analysis_result}"
+                                            )
                                             break
                                         except Exception as e:
-                                            print(f"Error processing image: {str(e)}")
+                                            print(
+                                                f"Error processing image: {str(e)}"
+                                            )
                                     else:
-                                        print(f"Image ref {image_ref} not found in relationships")
+                                        print(
+                                            f"Image ref {image_ref} not found in relationships"
+                                        )
                             else:
                                 print(f"Rels file not found: {rels_path}")
 
             result = {
-                "type": "image",
-                "name": nv_pic_pr.find('.//xdr:cNvPr', self.ns).get('name', ''),
-                "description": nv_pic_pr.find('.//xdr:cNvPr', self.ns).get('descr', ''),
-                "image_ref": image_ref,
-                "gpt4o_analysis": analysis_result if 'analysis_result' in locals() else None
+                "type":
+                "image",
+                "name":
+                nv_pic_pr.find('.//xdr:cNvPr', self.ns).get('name', ''),
+                "description":
+                nv_pic_pr.find('.//xdr:cNvPr', self.ns).get('descr', ''),
+                "image_ref":
+                image_ref,
+                "gpt4o_analysis":
+                analysis_result if 'analysis_result' in locals() else None
             }
             print(f"Returning result: {result}")
             return result
@@ -1007,7 +1058,8 @@ class ExcelMetadataExtractor:
                             if drawing_type == "image" and "image_ref" in drawing:
                                 region_info["image_ref"] = drawing["image_ref"]
                                 if "gpt4o_analysis" in drawing:
-                                    region_info["gpt4o_analysis"] = drawing["gpt4o_analysis"]
+                                    region_info["gpt4o_analysis"] = drawing[
+                                        "gpt4o_analysis"]
                             elif drawing_type == "smartart" and "diagram_type" in drawing:
                                 region_info["diagram_type"] = drawing[
                                     "diagram_type"]
@@ -1015,10 +1067,13 @@ class ExcelMetadataExtractor:
                                 region_info["chart_ref"] = drawing["chart_ref"]
                             # フォームコントロール情報の追加
                             if "form_control_type" in drawing:
-                                region_info["form_control_type"] = drawing["form_control_type"]
-                                region_info["form_control_state"] = drawing["form_control_state"]
+                                region_info["form_control_type"] = drawing[
+                                    "form_control_type"]
+                                region_info["form_control_state"] = drawing[
+                                    "form_control_state"]
                                 if "is_first_button" in drawing:
-                                    region_info["is_first_button"] = drawing["is_first_button"]
+                                    region_info["is_first_button"] = drawing[
+                                        "is_first_button"]
 
                             drawing_regions.append(region_info)
                             print(
@@ -1543,24 +1598,25 @@ class ExcelMetadataExtractor:
             )
             raise
 
-    def _parse_vml_for_controls(self, vml_content: str) -> List[Dict[str, Any]]:
+    def _parse_vml_for_controls(self,
+                                vml_content: str) -> List[Dict[str, Any]]:
         """VMLをパースし、チェックボックスやラジオボタンの情報を抽出する"""
         try:
             print("\nParsing VML content...")
             root = ET.fromstring(vml_content)
-            
+
             namespaces = {
                 'v': 'urn:schemas-microsoft-com:vml',
                 'o': 'urn:schemas-microsoft-com:office:office',
                 'x': 'urn:schemas-microsoft-com:office:excel'
             }
-            
+
             print(f"VML root tag: {root.tag}")
-            
+
             controls = []
             shapes = root.findall('v:shape', namespaces)
             print(f"Found {len(shapes)} shapes in VML")
-            
+
             for shape in shapes:
                 print(f"\nProcessing shape: {shape.attrib}")
                 # shape IDを取得（例：_x0000_s1025 → 1025）
@@ -1568,65 +1624,87 @@ class ExcelMetadataExtractor:
                 if '_s' in shape_id:
                     # _s以降の数字を抽出
                     control_id = int(shape_id.split('_s')[-1])
-                    print(f"Converted shape ID from {shape_id} to {control_id}")
-                
+                    print(
+                        f"Converted shape ID from {shape_id} to {control_id}")
+
                 client_data = shape.find('x:ClientData', namespaces)
                 if client_data is not None:
                     obj_type = client_data.get('ObjectType')
                     print(f"Found ClientData with ObjectType: {obj_type}")
-                    
-                    if obj_type in ['Check Box', 'Option Button', 'Checkbox', 'Radio']:
+
+                    if obj_type in [
+                            'Check Box', 'Option Button', 'Checkbox', 'Radio'
+                    ]:
                         print(f"Processing {obj_type}")
                         # 位置情報を取得
                         anchor_el = client_data.find('x:Anchor', namespaces)
                         if anchor_el is not None and anchor_el.text:
                             print(f"Found anchor: {anchor_el.text}")
                             anchor_values = anchor_el.text.split(',')
-                            anchor_values = [val.strip() for val in anchor_values]
+                            anchor_values = [
+                                val.strip() for val in anchor_values
+                            ]
                             col_start, dx_start, row_start, dy_start, col_end, dx_end, row_end, dy_end = anchor_values
-                            
+
                             # チェック状態を取得
-                            checked_el = client_data.find('x:Checked', namespaces)
-                            print(f"Found checked element: {ET.tostring(checked_el) if checked_el is not None else 'None'}")
-                            is_checked = (checked_el is not None and checked_el.text and checked_el.text.strip() == '1')
-                            print(f"Check state: {is_checked} (Element text: {checked_el.text if checked_el is not None else 'None'})")
-                            
+                            checked_el = client_data.find(
+                                'x:Checked', namespaces)
+                            print(
+                                f"Found checked element: {ET.tostring(checked_el) if checked_el is not None else 'None'}"
+                            )
+                            is_checked = (checked_el is not None
+                                          and checked_el.text
+                                          and checked_el.text.strip() == '1')
+                            print(
+                                f"Check state: {is_checked} (Element text: {checked_el.text if checked_el is not None else 'None'})"
+                            )
+
                             # グループ名を取得（ラジオボタンの場合）
                             if obj_type in ['Option Button', 'Radio']:
                                 # FirstButtonの有無を確認
-                                first_button = client_data.find('x:FirstButton', namespaces)
+                                first_button = client_data.find(
+                                    'x:FirstButton', namespaces)
                                 is_first = first_button is not None
                                 print(f"Is first button: {is_first}")
-                            
+
                             # セル範囲を計算
                             cell_start = f"{get_column_letter(int(col_start) + 1)}{int(row_start) + 1}"
                             cell_end = f"{get_column_letter(int(col_end) + 1)}{int(row_end) + 1}"
                             cell_range = f"{cell_start}:{cell_end}"
                             print(f"Calculated cell range: {cell_range}")
-                            
+
                             # テキスト内容を取得
                             textbox = shape.find('v:textbox', namespaces)
                             text_content = ""
                             if textbox is not None:
                                 div = textbox.find('.//div')
                                 if div is not None:
-                                    text_content = "".join(div.itertext()).strip()
+                                    text_content = "".join(
+                                        div.itertext()).strip()
                                 print(f"Found text content: {text_content}")
-                            
+
                             control_info = {
-                                'id': control_id,  # 変換後のIDを保存（1025などの数値）
-                                'type': 'checkbox' if obj_type in ['Check Box', 'Checkbox'] else 'radio',
-                                'checked': is_checked,
-                                'position': cell_range,
-                                'text': text_content
+                                'id':
+                                control_id,  # 変換後のIDを保存（1025などの数値）
+                                'type':
+                                'checkbox' if obj_type
+                                in ['Check Box', 'Checkbox'] else 'radio',
+                                'checked':
+                                is_checked,
+                                'position':
+                                cell_range,
+                                'text':
+                                text_content
                             }
-                            
+
                             if obj_type in ['Option Button', 'Radio']:
                                 control_info['is_first_button'] = is_first
-                                
-                            print(f"Adding control: {json.dumps(control_info, indent=2, ensure_ascii=False)}")
+
+                            print(
+                                f"Adding control: {json.dumps(control_info, indent=2, ensure_ascii=False)}"
+                            )
                             controls.append(control_info)
-            
+
             print(f"\nTotal controls found: {len(controls)}")
             return controls
         except Exception as e:

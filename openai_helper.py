@@ -267,24 +267,22 @@ Respond in JSON format:
 }
 """
             response = self.client.chat.completions.create(
-                model=self.model, 
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt},
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:image/png;base64,{base64_image}"
-                                }
-                            }
-                        ]
-                    }
-                ],
+                model=self.model,
+                messages=[{
+                    "role":
+                    "user",
+                    "content": [{
+                        "type": "text",
+                        "text": prompt
+                    }, {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/png;base64,{base64_image}"
+                        }
+                    }]
+                }],
                 response_format={"type": "json_object"},
-                max_tokens=2000
-            )
+                max_tokens=2000)
             return json.loads(response.choices[0].message.content)
         except Exception as e:
             print(f"Error analyzing image with GPT-4o: {str(e)}")
