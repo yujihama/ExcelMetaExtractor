@@ -61,10 +61,10 @@ def display_region_info(region):
                 # if 'is_first_button' in region:
                 #     st.write(f"グループ内の最初のボタン: {'はい' if region['is_first_button'] else 'いいえ'}")
                 
-                if 'text_content' in region and region['text_content']:
-                    st.write(f"表示テキスト: {region['text_content']}")
+                # if 'text_content' in region and region['text_content']:
+                #     st.write(f"表示テキスト: {region['text_content']}")
 
-                st.write(f"位置: {region['range']}")
+                # st.write(f"位置: {region['range']}")
 
 
 
@@ -87,8 +87,6 @@ def display_region_info(region):
 
             if region['type'] == 'image':
                 st.markdown("#### Image Analysis")
-                print(f"\n=== Processing image region: {region.get('range')} ===")
-                print(f"Region data: {json.dumps(region, indent=2)}")
                 
                 # GPT-4oの分析結果を表示
                 if 'gpt4o_analysis' in region and region['gpt4o_analysis']:
