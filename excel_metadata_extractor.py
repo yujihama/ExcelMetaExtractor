@@ -1,9 +1,11 @@
 import os
 import json
+import math
 from datetime import datetime
 import zipfile
 import xml.etree.ElementTree as ET
 from openpyxl import load_workbook
+import openpyxl.cell.cell
 from openpyxl.utils import get_column_letter
 from typing import Dict, Any, List, Optional, Tuple
 from openai_helper import OpenAIHelper
@@ -17,7 +19,6 @@ import matplotlib.pyplot as plt
 from openpyxl.utils.cell import coordinate_from_string, column_index_from_string
 import base64
 import numpy as np
-import math
 
 class ExcelMetadataExtractor:
     def __init__(self, file_obj):
