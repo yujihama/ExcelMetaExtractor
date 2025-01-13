@@ -216,6 +216,11 @@ class ChartProcessor:
 
                     # Extract series data
                     series_elements = chart_root.findall('.//c:ser', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
+                    chart_data = {
+                        "series": [],
+                        "categories": []
+                    }
+                    
                     for series in series_elements:
                         series_data = {}
                         
@@ -228,8 +233,21 @@ class ChartProcessor:
                         data_ref = series.find('.//c:val//c:numRef//c:f', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
                         if data_ref is not None:
                             series_data["data_range"] = data_ref.text
+                            
+                        # Get data values
+                        values = series.findall('.//c:val//c:numRef//c:numCache//c:v', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
+                        if values:
+                            series_data["values"] = [float(v.text) if v.text.replace('.','',1).isdigit() else 0 for v in values]
+                            chart_data["series"].append(series_data["values"])
+
+                        # Get categories
+                        cats = series.findall('.//c:cat//c:strRef//c:strCache//c:v', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
+                        if cats and not chart_data["categories"]:
+                            chart_data["categories"] = [c.text for c in cats]
 
                         chart_info["series"].append(series_data)
+                    
+                    chart_info["chart_data_json"] = json.dumps(chart_data)
             
             return chart_info
         except Exception as e:
