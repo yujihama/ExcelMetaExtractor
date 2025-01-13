@@ -172,3 +172,48 @@ class ChartProcessor:
             "x": categories,
             "y": data
         }
+
+    def _extract_chart_info(self, chart_elem, excel_zip):
+        try:
+            chart_info = {
+                "type": "chart",
+                "name": "",
+                "description": "",
+                "chartType": "",
+                "series": []
+            }
+            
+            # Get chart relationship ID
+            chart_id = chart_elem.get('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id')
+            
+            # Find and parse the chart XML file
+            chart_path = None
+            rels_path = 'xl/drawings/_rels/drawing1.xml.rels'
+            if rels_path in excel_zip.namelist():
+                with excel_zip.open(rels_path) as rels_file:
+                    rels_tree = ET.parse(rels_file)
+                    rels_root = rels_tree.getroot()
+                    for rel in rels_root.findall('.//{http://schemas.openxmlformats.org/package/2006/relationships}Relationship'):
+                        if rel.get('Id') == chart_id:
+                            chart_path = 'xl/' + rel.get('Target').replace('..', '')
+                            break
+            
+            if chart_path and chart_path in excel_zip.namelist():
+                with excel_zip.open(chart_path) as chart_file:
+                    chart_tree = ET.parse(chart_file)
+                    chart_root = chart_tree.getroot()
+                    
+                    # Extract chart type
+                    chart_type_elem = chart_root.find('.//c:plotArea/*', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
+                    if chart_type_elem is not None:
+                        chart_info["chartType"] = chart_type_elem.tag.split('}')[-1]
+                    
+                    # Extract title
+                    title_elem = chart_root.find('.//c:title//c:tx//c:rich//a:t', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart', 'a': 'http://schemas.openxmlformats.org/drawingml/2006/main'})
+                    if title_elem is not None:
+                        chart_info["name"] = title_elem.text
+            
+            return chart_info
+        except Exception as e:
+            print(f"Error extracting chart info: {str(e)}")
+            return None

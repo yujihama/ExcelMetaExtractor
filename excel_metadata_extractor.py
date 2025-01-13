@@ -128,7 +128,7 @@ class ExcelMetadataExtractor:
         # Process charts
         chart = anchor.find('.//c:chart', self.ns)
         if chart is not None:
-            chart_info = self._extract_chart_info(chart, excel_zip)
+            chart_info = self.chart_processor._extract_chart_info(chart, excel_zip)
             if chart_info:
                 chart_info["coordinates"] = coordinates
                 chart_info["range"] = range_str
