@@ -6,6 +6,7 @@ import base64
 from logger import Logger
 import zipfile
 from openpyxl.utils import get_column_letter
+from openai_helper import OpenAIHelper
 
 class DrawingExtractor:
     def __init__(self, logger: Logger):
