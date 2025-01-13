@@ -5,6 +5,10 @@ from datetime import datetime
 
 class Logger:
     def __init__(self):
+        # watchdogのデバッグログを無効化
+        logging.getLogger('watchdog.observers.inotify_buffer').setLevel(logging.WARNING)
+        
+        # 基本設定
         logging.basicConfig(
             level=logging.DEBUG,
             format='%(asctime)s [%(levelname)s] %(message)s',
