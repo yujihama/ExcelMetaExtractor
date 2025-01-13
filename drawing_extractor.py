@@ -9,9 +9,9 @@ from openpyxl.utils import get_column_letter
 from openai_helper import OpenAIHelper
 
 class DrawingExtractor:
-    def __init__(self, logger: Logger):
+    def __init__(self, logger: Logger, openai_helper: OpenAIHelper):
         self.logger = logger
-        self.openai_helper = OpenAIHelper()
+        self.openai_helper = openai_helper
         self.ns = {
             'a': 'http://schemas.openxmlformats.org/drawingml/2006/main',
             'xdr': 'http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing',
