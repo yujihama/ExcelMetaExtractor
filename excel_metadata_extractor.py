@@ -7,6 +7,7 @@ import xml.etree.ElementTree as ET
 from openpyxl import load_workbook
 from logger import Logger
 from drawing_extractor import DrawingExtractor
+from region_analyzer import RegionAnalyzer
 import openpyxl.cell.cell
 from openpyxl.utils import get_column_letter
 from typing import Dict, Any, List, Optional, Tuple
