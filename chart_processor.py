@@ -213,6 +213,23 @@ class ChartProcessor:
                     title_elem = chart_root.find('.//c:title//c:tx//c:rich//a:t', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart', 'a': 'http://schemas.openxmlformats.org/drawingml/2006/main'})
                     if title_elem is not None:
                         chart_info["name"] = title_elem.text
+
+                    # Extract series data
+                    series_elements = chart_root.findall('.//c:ser', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
+                    for series in series_elements:
+                        series_data = {}
+                        
+                        # Get series name
+                        series_name = series.find('.//c:tx//c:v', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
+                        if series_name is not None:
+                            series_data["name"] = series_name.text
+
+                        # Get data range
+                        data_ref = series.find('.//c:val//c:numRef//c:f', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
+                        if data_ref is not None:
+                            series_data["data_range"] = data_ref.text
+
+                        chart_info["series"].append(series_data)
             
             return chart_info
         except Exception as e:
