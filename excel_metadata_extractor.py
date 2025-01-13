@@ -29,6 +29,7 @@ class ExcelMetadataExtractor:
         self.openai_helper = OpenAIHelper()
         self.MAX_CELLS_PER_ANALYSIS = 100
         self.logger = Logger()
+        self.drawing_extractor = DrawingExtractor(self.logger)
 
         # Store excel_zip for later use
         temp_dir = tempfile.mkdtemp()
@@ -48,22 +49,6 @@ class ExcelMetadataExtractor:
             'x': 'urn:schemas-microsoft-com:office:excel',
             'v': 'urn:schemas-microsoft-com:vml'
         }
-
-    def __init__(self, file_obj):
-        self.file_obj = file_obj
-        self.workbook = load_workbook(file_obj, data_only=True)
-        self.openai_helper = OpenAIHelper()
-        self.MAX_CELLS_PER_ANALYSIS = 100
-        self.logger = Logger()
-        self.drawing_extractor = DrawingExtractor(self.logger)
-
-        # Store excel_zip for later use
-        temp_dir = tempfile.mkdtemp()
-        temp_zip = os.path.join(temp_dir, 'temp.xlsx')
-        with open(temp_zip, 'wb') as f:
-            self.file_obj.seek(0)
-            f.write(self.file_obj.read())
-        self.excel_zip = zipfile.ZipFile(temp_zip, 'r')
 
     def get_sheet_drawing_relations(self, excel_zip) -> Dict[str, str]:
         return self.drawing_extractor.get_sheet_drawing_relations(excel_zip)
