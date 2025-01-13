@@ -623,6 +623,12 @@ class ExcelMetadataExtractor:
         """VMLコンテンツからコントロール情報を抽出"""
         controls = []
         try:
+            namespaces = {
+                'v': 'urn:schemas-microsoft-com:vml',
+                'o': 'urn:schemas-microsoft-com:office:office',
+                'x': 'urn:schemas-microsoft-com:office:excel'
+            }
+
             root = ET.fromstring(vml_content)
             control_elements = root.findall('.//{urn:schemas-microsoft-com:vml}shape')
 
@@ -630,65 +636,67 @@ class ExcelMetadataExtractor:
 
             for element in control_elements:
                 try:
+                    # テキスト内容を取得
+                    textbox = element.find('.//v:textbox', namespaces)
+                    text_content = ""
+                    if textbox is not None:
+                        div = textbox.find('.//div')
+                        if div is not None:
+                            text_content = "".join(div.itertext()).strip()
+                            print(f"Found text content: {text_content}")
+
                     control_type = element.find('.//{urn:schemas-microsoft-com:office:excel}ClientData')
                     if control_type is not None:
                         control_type_value = control_type.get('ObjectType')
                         print(f"\nFound control of type: {control_type_value}")
 
-                        if control_type_value in ['Checkbox', 'Radio']:
-                            shape_id = element.get('id', '')
+                        shape_id = element.get('id', '')
+                        try:
+                            # VML IDから数値部分を抽出（例：_x0000_s1027から1027を取得）
+                            numeric_id = shape_id.split('_s')[-1]
+                            numeric_id = int(numeric_id) if numeric_id.isdigit() else None
+                            print(f"Extracted numeric ID: {numeric_id} from shape ID: {shape_id}")
+
+                        except (ValueError, IndexError) as e:
+                            print(f"Error extracting numeric ID from shape_id {shape_id}: {str(e)}")
+                            continue
+
+                        control = {
+                            'id': shape_id,
+                            'numeric_id': str(numeric_id) if numeric_id is not None else None,
+                            'type': 'checkbox' if control_type_value == 'Checkbox' else 'radio',
+                            'checked': False,
+                            'position': '',
+                            'text': text_content  # テキスト内容を設定
+                        }
+
+                        # チェックボックスの状態
+                        checked = control_type.find('.//{urn:schemas-microsoft-com:office:excel}Checked')
+                        if checked is not None and checked.text:
+                            control['checked'] = checked.text == '1'
+
+                        # アンカー情報の解析（セルの位置）
+                        anchor = control_type.find('.//{urn:schemas-microsoft-com:office:excel}Anchor')
+                        if anchor is not None and anchor.text:
                             try:
-                                # VML IDから数値部分を抽出（例：_x0000_s1027から1027を取得）
-                                numeric_id = shape_id.split('_s')[-1]
-                                numeric_id = int(numeric_id) if numeric_id.isdigit() else None
-                                print(f"Extracted numeric ID: {numeric_id} from shape ID: {shape_id}")
-
+                                coords = [int(x) for x in anchor.text.split(',')]
+                                from_col = coords[0]
+                                from_row = coords[1]
+                                to_col = coords[2]
+                                to_row = coords[3]
+                                control['position'] = f"{get_column_letter(from_col + 1)}{from_row + 1}:{get_column_letter(to_col + 1)}{to_row + 1}"
+                                print(f"Control position: {control['position']}")
                             except (ValueError, IndexError) as e:
-                                print(f"Error extracting numeric ID from shape_id {shape_id}: {str(e)}")
-                                continue
+                                print(f"Error processing anchor coordinates: {str(e)}")
 
-                            control = {
-                                'id': shape_id,
-                                'numeric_id': str(numeric_id) if numeric_id is not None else None,
-                                'type': 'checkbox' if control_type_value == 'Checkbox' else 'radio',
-                                'checked': False,
-                                'position': '',
-                                'text': ''
-                            }
+                        # ラジオボタンの追加情報
+                        if control_type_value == 'Radio':
+                            first_button = control_type.find('.//{urn:schemas-microsoft-com:office:excel}FirstButton')
+                            if first_button is not None:
+                                control['is_first_button'] = first_button.text == '1'
 
-                            # チェックボックスの状態
-                            checked = control_type.find('.//{urn:schemas-microsoft-com:office:excel}Checked')
-                            if checked is not None and checked.text:
-                                control['checked'] = checked.text == '1'
-
-                            # テキストの取得
-                            text_box = control_type.find('.//{urn:schemas-microsoft-com:office:excel}TextBox')
-                            if text_box is not None and text_box.text:
-                                control['text'] = text_box.text.strip()
-                                print(f"Found text content: {control['text']}")
-
-                            # アンカー情報の解析（セルの位置）
-                            anchor = control_type.find('.//{urn:schemas-microsoft-com:office:excel}Anchor')
-                            if anchor is not None and anchor.text:
-                                try:
-                                    coords = [int(x) for x in anchor.text.split(',')]
-                                    from_col = coords[0]
-                                    from_row = coords[1]
-                                    to_col = coords[2]
-                                    to_row = coords[3]
-                                    control['position'] = f"{get_column_letter(from_col + 1)}{from_row + 1}:{get_column_letter(to_col + 1)}{to_row + 1}"
-                                    print(f"Control position: {control['position']}")
-                                except (ValueError, IndexError) as e:
-                                    print(f"Error processing anchor coordinates: {str(e)}")
-
-                            # ラジオボタンの追加情報
-                            if control_type_value == 'Radio':
-                                first_button = control_type.find('.//{urn:schemas-microsoft-com:office:excel}FirstButton')
-                                if first_button is not None:
-                                    control['is_first_button'] = first_button.text == '1'
-
-                            print(f"Adding VML control: {json.dumps(control, indent=2, ensure_ascii=False)}")
-                            controls.append(control)
+                        print(f"Adding VML control: {json.dumps(control, indent=2, ensure_ascii=False)}")
+                        controls.append(control)
 
                 except Exception as control_error:
                     print(f"Error processing individual control: {str(control_error)}")
