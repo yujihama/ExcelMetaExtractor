@@ -295,6 +295,49 @@ class DrawingExtractor:
 
         return controls
 
+    def _process_shapes(self, anchor, vml_controls, drawing_list):
+        for sp in anchor.findall('.//xdr:sp', self.ns):
+            shape_info = self._extract_shape_info(sp, anchor, vml_controls)
+            if shape_info:
+                drawing_list.append(shape_info)
+
+    def _process_drawings(self, anchor, excel_zip, drawing_list):
+        coordinates = self._get_coordinates(anchor)
+        range_str = self._get_range_from_coordinates(coordinates)
+
+        # Process images
+        for pic in anchor.findall('.//xdr:pic', self.ns):
+            image_info = self.extract_picture_info(pic, excel_zip, self.ns)
+            if image_info:
+                image_info["coordinates"] = coordinates
+                image_info["range"] = range_str
+                drawing_list.append(image_info)
+
+        # Process charts
+        chart = anchor.find('.//c:chart', self.ns)
+        if chart is not None:
+            chart_info = {
+                "type": "chart",
+                "coordinates": coordinates,
+                "range": range_str
+            }
+            drawing_list.append(chart_info)
+
+        # Process other elements
+        for grp in anchor.findall('.//xdr:grpSp', self.ns):
+            group_info = self._extract_group_info(grp)
+            if group_info:
+                group_info["coordinates"] = coordinates
+                group_info["range"] = range_str
+                drawing_list.append(group_info)
+
+        for cxn in anchor.findall('.//xdr:cxnSp', self.ns):
+            connector_info = self._extract_connector_info(cxn)
+            if connector_info:
+                connector_info["coordinates"] = coordinates
+                connector_info["range"] = range_str
+                drawing_list.append(connector_info)
+
     def extract_picture_info(self, pic, excel_zip, ns): 
         try:
             name_elem = pic.find('.//xdr:nvPicPr/xdr:cNvPr', ns)
