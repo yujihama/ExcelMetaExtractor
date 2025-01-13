@@ -68,7 +68,6 @@ class DrawingExtractor:
         return sheet_drawing_map
 
     def _extract_shape_info(self, sp, anchor, vml_controls):
-        """図形情報を抽出し、VMLコントロールとマッチングする"""
         try:
             shape_info = {
                 "type": "shape",
@@ -189,7 +188,8 @@ class DrawingExtractor:
             self.logger.error(f"Error in extract_drawing_info: {str(e)}")
 
         return drawing_list
-def _extract_group_info(self, grp):
+
+    def _extract_group_info(self, grp):
         try:
             name_elem = grp.find('.//xdr:nvGrpSpPr/xdr:cNvPr', self.ns)
             if name_elem is not None:
