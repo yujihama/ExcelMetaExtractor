@@ -33,6 +33,9 @@ class Logger:
     def processing_region(self, region_type, range_str):
         self.logger.info(f"Processing Region - Type: {region_type}, Range: {range_str}")
 
+    def info(self, message):
+        self.logger.info(message)
+
     def error(self, message, error=None):
         if error:
             self.logger.error(f"{message}: {str(error)}")
