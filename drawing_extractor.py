@@ -248,9 +248,12 @@ class DrawingExtractor:
                                                     image_data = img_file.read()
                                                     image_base64 = base64.b64encode(image_data).decode('utf-8')
 
-                                                    analysis_result = self.openai_helper.analyze_image_with_gpt4o(image_base64)
-                                                    if analysis_result:
-                                                        image_info["gpt4o_analysis"] = analysis_result
+                                                    # OpenAI APIを使用した画像分析を実行
+analysis_result = None
+if hasattr(self, 'openai_helper'):
+    analysis_result = self.openai_helper.analyze_image_with_gpt4o(image_base64)
+if analysis_result:
+    image_info["gpt4o_analysis"] = analysis_result
 
                         except Exception as e:
                             self.logger.error(f"Error analyzing image: {str(e)}")
