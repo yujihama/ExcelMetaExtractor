@@ -384,17 +384,20 @@ class ExcelMetadataExtractor:
                     # 座標情報をセル範囲として保存
                     range_str = self._get_range_from_coordinates(shape_info["coordinates"])
                     shape_info["range"] = range_str
-                    print(f"\nLooking for VML control - Shape ID: {shape_id}")
+                    print(f"\nProcessing shape with ID: {shape_id}")
+                    print(f"Available VML controls: {len(vml_controls)}")
 
                     # IDに基づいてVMLコントロールを検索
                     matching_control = None
                     for control in vml_controls:
+                        print(f"Comparing shape ID {shape_id} with VML control ID {control.get('numeric_id')}")
                         if control.get('numeric_id') == shape_id:
                             matching_control = control
                             break
 
                     if matching_control:
-                        print(f"Found matching VML control: {json.dumps(matching_control, indent=2, ensure_ascii=False)}")
+                        print(f"Found matching VML control for shape ID {shape_id}:")
+                        print(json.dumps(matching_control, indent=2, ensure_ascii=False))
                         shape_info.update({
                             "text_content": matching_control.get("text", ""),
                             "form_control_type": matching_control.get("type"),
@@ -403,7 +406,12 @@ class ExcelMetadataExtractor:
                         if matching_control.get("is_first_button") is not None:
                             shape_info["is_first_button"] = matching_control["is_first_button"]
                     else:
-                        print(f"No VML control found for ID: {shape_id}")
+                        print(f"No matching VML control found for shape ID: {shape_id}")
+                        # テキスト内容を直接取得
+                        txBody = sp.find('.//xdr:txBody//a:t', self.ns)
+                        if txBody is not None and txBody.text:
+                            shape_info["text_content"] = txBody.text
+                            print(f"Found direct text content: {txBody.text}")
 
             return shape_info
         except Exception as e:
@@ -612,79 +620,85 @@ class ExcelMetadataExtractor:
             return None
 
     def _parse_vml_for_controls(self, vml_content):
+        """VMLコンテンツからコントロール情報を抽出"""
         controls = []
         try:
             root = ET.fromstring(vml_content)
             control_elements = root.findall('.//{urn:schemas-microsoft-com:vml}shape')
 
+            print(f"\nProcessing {len(control_elements)} VML control elements")
+
             for element in control_elements:
-                control_type = element.find('.//{urn:schemas-microsoft-com:office:excel}ClientData')
-                if control_type is not None:
-                    control_type_value = control_type.get('ObjectType')
+                try:
+                    control_type = element.find('.//{urn:schemas-microsoft-com:office:excel}ClientData')
+                    if control_type is not None:
+                        control_type_value = control_type.get('ObjectType')
+                        print(f"\nFound control of type: {control_type_value}")
 
-                    if control_type_value in ['Checkbox', 'Radio']:
-                        shape_id = element.get('id', '')
-                        try:
-                            # VML IDから数値部分を抽出（例：_x0000_s1027から1027を取得）
-                            numeric_id = shape_id.split('_s')[-1]
-
-                            # 抽出したIDをint型に変換して保存
-                            numeric_id = int(numeric_id) if numeric_id.isdigit() else None
-
-                            print(f"\nProcessing shape with ID: {shape_id}, numeric part: {numeric_id}")
-                        except (ValueError, IndexError) as e:
-                            print(f"Error extracting numeric ID from shape_id {shape_id}: {str(e)}")
-                            continue
-
-                        control = {
-                            'id': shape_id,
-                            'numeric_id': str(numeric_id) if numeric_id is not None else None,
-                            'type': 'checkbox' if control_type_value == 'Checkbox' else 'radio',
-                            'checked': False,
-                            'position': '',
-                            'text': ''
-                        }
-
-                        # アンカー情報の解析（セルの位置）
-                        anchor = control_type.find('.//{urn:schemas-microsoft-com:office:excel}Anchor')
-                        if anchor is not None and anchor.text:
+                        if control_type_value in ['Checkbox', 'Radio']:
+                            shape_id = element.get('id', '')
                             try:
-                                coords = [int(x) for x in anchor.text.split(',')]
-                                from_col = coords[0]
-                                from_row = coords[1]
-                                to_col = coords[2]
-                                to_row = coords[3]
+                                # VML IDから数値部分を抽出（例：_x0000_s1027から1027を取得）
+                                numeric_id = shape_id.split('_s')[-1]
+                                numeric_id = int(numeric_id) if numeric_id.isdigit() else None
+                                print(f"Extracted numeric ID: {numeric_id} from shape ID: {shape_id}")
 
-                                # セル範囲を文字列として保存
-                                control['position'] = f"{get_column_letter(from_col + 1)}{from_row + 1}:{get_column_letter(to_col + 1)}{to_row + 1}"
-                                print(f"Control position: {control['position']}")
                             except (ValueError, IndexError) as e:
-                                print(f"Error processing anchor coordinates: {str(e)}")
+                                print(f"Error extracting numeric ID from shape_id {shape_id}: {str(e)}")
                                 continue
 
-                        # チェックボックスの状態
-                        checked = control_type.find('.//{urn:schemas-microsoft-com:office:excel}Checked')
-                        if checked is not None and checked.text:
-                            control['checked'] = checked.text == '1'
+                            control = {
+                                'id': shape_id,
+                                'numeric_id': str(numeric_id) if numeric_id is not None else None,
+                                'type': 'checkbox' if control_type_value == 'Checkbox' else 'radio',
+                                'checked': False,
+                                'position': '',
+                                'text': ''
+                            }
 
-                        # テキストボックスの内容
-                        text_box = control_type.find('.//{urn:schemas-microsoft-com:office:excel}TextBox')
-                        if text_box is not None and text_box.text:
-                            control['text'] = text_box.text
+                            # チェックボックスの状態
+                            checked = control_type.find('.//{urn:schemas-microsoft-com:office:excel}Checked')
+                            if checked is not None and checked.text:
+                                control['checked'] = checked.text == '1'
 
-                        # ラジオボタンの場合、グループ内の最初のボタンかどうかを確認
-                        if control_type_value == 'Radio':
-                            first_button = control_type.find('.//{urn:schemas-microsoft-com:office:excel}FirstButton')
-                            if first_button is not None:
-                                control['is_first_button'] = first_button.text == '1'
+                            # テキストの取得
+                            text_box = control_type.find('.//{urn:schemas-microsoft-com:office:excel}TextBox')
+                            if text_box is not None and text_box.text:
+                                control['text'] = text_box.text.strip()
+                                print(f"Found text content: {control['text']}")
 
-                        print(f"Added VML control: {json.dumps(control, indent=2, ensure_ascii=False)}")
-                        controls.append(control)
+                            # アンカー情報の解析（セルの位置）
+                            anchor = control_type.find('.//{urn:schemas-microsoft-com:office:excel}Anchor')
+                            if anchor is not None and anchor.text:
+                                try:
+                                    coords = [int(x) for x in anchor.text.split(',')]
+                                    from_col = coords[0]
+                                    from_row = coords[1]
+                                    to_col = coords[2]
+                                    to_row = coords[3]
+                                    control['position'] = f"{get_column_letter(from_col + 1)}{from_row + 1}:{get_column_letter(to_col + 1)}{to_row + 1}"
+                                    print(f"Control position: {control['position']}")
+                                except (ValueError, IndexError) as e:
+                                    print(f"Error processing anchor coordinates: {str(e)}")
+
+                            # ラジオボタンの追加情報
+                            if control_type_value == 'Radio':
+                                first_button = control_type.find('.//{urn:schemas-microsoft-com:office:excel}FirstButton')
+                                if first_button is not None:
+                                    control['is_first_button'] = first_button.text == '1'
+
+                            print(f"Adding VML control: {json.dumps(control, indent=2, ensure_ascii=False)}")
+                            controls.append(control)
+
+                except Exception as control_error:
+                    print(f"Error processing individual control: {str(control_error)}")
+                    continue
 
         except Exception as e:
             print(f"Error parsing VML content: {str(e)}")
             print(traceback.format_exc())
 
+        print(f"\nTotal VML controls extracted: {len(controls)}")
         return controls
 
     def detect_regions(self, sheet) -> List[Dict[str, Any]]:
