@@ -25,26 +25,10 @@ from openpyxl.utils.cell import coordinate_from_string, column_index_from_string
 import base64
 import numpy as np
 
-class VMLProcessor: # Placeholder class
-    def __init__(self, logger):
-        self.logger = logger
-
-    def parse_vml_for_controls(self, vml_content):
-        #Implementation for VML processing would go here.
-        return []
+from vml_processor import VMLProcessor
 
 
-class RegionDetector: # Placeholder class
-    def __init__(self):
-        pass
-
-    def find_region_boundaries(self, sheet, start_row: int, start_col: int) -> Tuple[int, int]:
-        #Implementation for region boundary detection would go here.
-        return start_row, start_col
-
-    def get_merged_cells_info(self, sheet, start_row: int, start_col: int, max_row: int, max_col: int) -> List[Dict[str, Any]]:
-        #Implementation for merged cell info retrieval would go here.
-        return []
+from region_detector import RegionDetector
 
 
 class ExcelMetadataExtractor:
