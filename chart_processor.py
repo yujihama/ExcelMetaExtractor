@@ -229,14 +229,15 @@ class ChartProcessor:
 
                     # Extract series data
                     series_elements = chart_root.findall('.//c:ser', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
-                    if not series_elements:
-                        self.logger.error("No series elements found in chart")
-                        return None
-                        
                     chart_data = {
                         "series": [],
                         "categories": []
                     }
+                    
+                    if not series_elements:
+                        self.logger.error("No series elements found in chart")
+                        chart_info["chart_data_json"] = json.dumps(chart_data)
+                        return chart_info
                     
                     self.logger.info(f"Found {len(series_elements)} series elements")
                     for series in series_elements:
