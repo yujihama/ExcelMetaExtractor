@@ -248,10 +248,12 @@ class ExcelMetadataExtractor:
                     try:
                         cell_coord = f"{get_column_letter(col)}{row}"
                         if cell_coord in processed_cells:
+                            self.logger.info(f"Skipping processed cell {cell_coord}")
                             continue
 
                         cell = sheet.cell(row=row, column=col)
                         if cell.value is None:
+                            self.logger.info(f"Skipping empty cell {cell_coord}")
                             continue
 
                         # 区切り文字のみのセルはスキップ
