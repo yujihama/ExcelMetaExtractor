@@ -176,6 +176,7 @@ class ChartProcessor:
         }
 
     def _extract_chart_info(self, chart_elem, excel_zip):
+        self.logger.debug("_extract_chart_info started")
         try:
             self.logger.info("Starting chart info extraction")
             chart_info = {
@@ -188,10 +189,12 @@ class ChartProcessor:
             
             # Get chart relationship ID
             chart_id = chart_elem.get('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id')
+            self.logger.debug(f"chart_id: {chart_id}")
             
             # Find and parse the chart XML file
             chart_path = None
             rels_path = 'xl/drawings/_rels/drawing1.xml.rels'
+            self.logger.debug("Checking if rels_path is in the Excel zip")
             if rels_path in excel_zip.namelist():
                 with excel_zip.open(rels_path) as rels_file:
                     rels_tree = ET.parse(rels_file)
@@ -199,6 +202,7 @@ class ChartProcessor:
                     for rel in rels_root.findall('.//{http://schemas.openxmlformats.org/package/2006/relationships}Relationship'):
                         if rel.get('Id') == chart_id:
                             chart_path = 'xl/' + rel.get('Target').replace('..', '')
+                            self.logger.debug(f"Found chart_path: {chart_path}")
                             break
             
             if chart_path and chart_path in excel_zip.namelist():
@@ -210,11 +214,13 @@ class ChartProcessor:
                     chart_type_elem = chart_root.find('.//c:plotArea/*', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
                     if chart_type_elem is not None:
                         chart_info["chartType"] = chart_type_elem.tag.split('}')[-1]
+                    self.logger.debug(f"Extracted chartType: {chart_info['chartType']}")
                     
                     # Extract title
                     title_elem = chart_root.find('.//c:title//c:tx//c:rich//a:t', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart', 'a': 'http://schemas.openxmlformats.org/drawingml/2006/main'})
                     if title_elem is not None:
                         chart_info["name"] = title_elem.text if title_elem is not None else ""
+                    self.logger.debug(f"Extracted title: {chart_info['name']}")
 
                     # Get chart type
                     plot_area = chart_root.find('.//c:plotArea', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
@@ -222,13 +228,17 @@ class ChartProcessor:
                         for child in plot_area:
                             if child.tag.endswith('}barChart'):
                                 chart_info["chartType"] = "barChart"
+                                self.logger.debug("Set chartType to barChart")
                             elif child.tag.endswith('}lineChart'):
                                 chart_info["chartType"] = "lineChart"
+                                self.logger.debug("Set chartType to lineChart")
                             elif child.tag.endswith('}pieChart'):
                                 chart_info["chartType"] = "pieChart"
+                                self.logger.debug("Set chartType to pieChart")
 
                     # Extract series data
                     series_elements = chart_root.findall('.//c:ser', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
+                    self.logger.debug("Extracting series data")
                     chart_data = {
                         "series": [],
                         "categories": []
@@ -236,40 +246,45 @@ class ChartProcessor:
                     
                     for series in series_elements:
                         series_data = {}
+                        self.logger.debug("Extracting series")
                         
                         # Get series name
                         series_name = series.find('.//c:tx//c:v', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
                         if series_name is not None:
                             series_data["name"] = series_name.text
+                        self.logger.debug(f"Series name: {series_data.get('name', '')}")
 
                         # Get data range
                         data_ref = series.find('.//c:val//c:numRef//c:f', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
                         if data_ref is not None:
                             series_data["data_range"] = data_ref.text
+                        self.logger.debug(f"Data range: {series_data.get('data_range', '')}")
                             
                         # Get data values
                         values = series.findall('.//c:val//c:numRef//c:numCache//c:v', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
                         if values:
-                            values_list = [float(v.text) if v.text.replace('.','',1).isdigit() else 0 for v in values]
+                            values_list = [float(v.text) if v.text.replace('.', '', 1).isdigit() else 0 for v in values]
                             series_data["values"] = values_list
                             chart_data["series"].append(values_list)
+                        self.logger.debug(f"Values: {series_data.get('values', [])}")
 
                         # Get categories
                         cats = series.findall('.//c:cat//c:strRef//c:strCache//c:v', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
                         if cats and not chart_data["categories"]:
                             chart_data["categories"] = [c.text for c in cats]
+                        self.logger.debug(f"Categories: {chart_data.get('categories', [])}")
 
                         chart_info["series"].append(series_data)
                     
                     # Set chart type and data
                     chart_info["chartType"] = chart_type_elem.tag.split('}')[-1] if chart_type_elem is not None else ""
                     chart_info["chart_data_json"] = json.dumps(chart_data)
-                    
                     chart_info["chart_data_json"] = json.dumps(chart_data)
                     self.logger.info(f"Complete chart info: {json.dumps(chart_info, indent=2)}")
                     self.logger.info(f"Chart data: {json.dumps(chart_data, indent=2)}")
             
             return chart_info
         except Exception as e:
+            self.logger.error(f"Error extracting chart info: {str(e)}")
             print(f"Error extracting chart info: {str(e)}")
             return None
