@@ -567,8 +567,17 @@ class ExcelMetadataExtractor:
                     control_type_value = control_type.get('ObjectType')
 
                     if control_type_value in ['Checkbox', 'Radio']:
+                        # IDの処理を改善
+                        shape_id = element.get('id', '')
+                        try:
+                            # '_x0000_s1025' -> '1025'のように数値部分を抽出
+                            id_num = shape_id.split('_s')[-1] if '_s' in shape_id else '0'
+                            control_id = int(id_num)
+                        except (ValueError, IndexError):
+                            control_id = 0
+
                         control = {
-                            'id': int(element.get('id', 0)),
+                            'id': control_id,
                             'type': 'checkbox' if control_type_value == 'Checkbox' else 'radio',
                             'checked': False,
                             'position': '',
@@ -577,10 +586,14 @@ class ExcelMetadataExtractor:
 
                         anchor = control_type.find('.//{urn:schemas-microsoft-com:office:excel}Anchor')
                         if anchor is not None and anchor.text:
-                            coords = [int(x) for x in anchor.text.split(',')]
-                            from_col = get_column_letter(coords[0] + 1)
-                            to_col = get_column_letter(coords[2] + 1)
-                            control['position'] = f"{from_col}{coords[1] + 1}:{to_col}{coords[3] + 1}"
+                            try:
+                                coords = [int(x) for x in anchor.text.split(',')]
+                                from_col = get_column_letter(coords[0] + 1)
+                                to_col = get_column_letter(coords[2] + 1)
+                                control['position'] = f"{from_col}{coords[1] + 1}:{to_col}{coords[3] + 1}"
+                            except (ValueError, IndexError) as e:
+                                print(f"Error processing anchor coordinates: {str(e)}")
+                                continue
 
                         checked = control_type.find('.//{urn:schemas-microsoft-com:office:excel}Checked')
                         if checked is not None and checked.text:
@@ -599,6 +612,7 @@ class ExcelMetadataExtractor:
 
         except Exception as e:
             print(f"Error parsing VML content: {str(e)}")
+            print(f"VML content: {vml_content[:200]}...")  # 最初の200文字のみ表示
 
         return controls
 
@@ -1027,50 +1041,3 @@ class ExcelMetadataExtractor:
         except Exception as e:
             print(f"Error in extract_all_metadata: {str(e)}\n{traceback.format_exc()}")
             raise
-
-    def _parse_vml_for_controls(self, vml_content):
-        controls = []
-        try:
-            root = ET.fromstring(vml_content)
-            control_elements = root.findall('.//{urn:schemas-microsoft-com:vml}shape')
-
-            for element in control_elements:
-                control_type = element.find('.//{urn:schemas-microsoft-com:office:excel}ClientData')
-                if control_type is not None:
-                    control_type_value = control_type.get('ObjectType')
-
-                    if control_type_value in ['Checkbox', 'Radio']:
-                        control = {
-                            'id': int(element.get('id', 0)),
-                            'type': 'checkbox' if control_type_value == 'Checkbox' else 'radio',
-                            'checked': False,
-                            'position': '',
-                            'text': ''
-                        }
-
-                        anchor = control_type.find('.//{urn:schemas-microsoft-com:office:excel}Anchor')
-                        if anchor is not None and anchor.text:
-                            coords = [int(x) for x in anchor.text.split(',')]
-                            from_col = get_column_letter(coords[0] + 1)
-                            to_col = get_column_letter(coords[2] + 1)
-                            control['position'] = f"{from_col}{coords[1] + 1}:{to_col}{coords[3] + 1}"
-
-                        checked = control_type.find('.//{urn:schemas-microsoft-com:office:excel}Checked')
-                        if checked is not None and checked.text:
-                            control['checked'] = checked.text == '1'
-
-                        text_box = control_type.find('.//{urn:schemas-microsoft-com:office:excel}TextBox')
-                        if text_box is not None and text_box.text:
-                            control['text'] = text_box.text
-
-                        if control_type_value == 'Radio':
-                            first_button = control_type.find('.//{urn:schemas-microsoft-com:office:excel}FirstButton')
-                            if first_button is not None:
-                                control['is_first_button'] = first_button.text == '1'
-
-                        controls.append(control)
-
-        except Exception as e:
-            print(f"Error parsing VML content: {str(e)}")
-
-        return controls
