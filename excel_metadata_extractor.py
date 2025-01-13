@@ -364,24 +364,30 @@ class ExcelMetadataExtractor:
                 shape_info["hidden"] = name_elem.get('hidden', '0') == '1'
                 shape_info["description"] = name_elem.get('descr', '')
 
-            shape_id = name_elem.get('id') if name_elem is not None else None
-            if shape_id:
-                range_str = self._get_range_from_coordinates(shape_info["coordinates"])
-                shape_info["range"] = range_str
+                shape_id = name_elem.get('id') if name_elem is not None else None
+                if shape_id:
+                    range_str = self._get_range_from_coordinates(shape_info["coordinates"])
+                    shape_info["range"] = range_str
+                    print(f"\nLooking for VML control at range: {range_str}")
+                    print(f"Available VML controls: {list(vml_controls.keys())}")
 
-                vml_control = vml_controls.get(range_str)
-                if vml_control:
-                    shape_info.update({
-                        "text_content": vml_control.get("text", ""),
-                        "form_control_type": vml_control.get("type"),
-                        "form_control_state": vml_control.get("checked", False),
-                    })
-                    if vml_control.get("is_first_button") is not None:
-                        shape_info["is_first_button"] = vml_control["is_first_button"]
+                    vml_control = vml_controls.get(range_str)
+                    if vml_control:
+                        print(f"Found VML control: {vml_control}")
+                        shape_info.update({
+                            "text_content": vml_control.get("text", ""),
+                            "form_control_type": vml_control.get("type"),
+                            "form_control_state": vml_control.get("checked", False),
+                        })
+                        if vml_control.get("is_first_button") is not None:
+                            shape_info["is_first_button"] = vml_control["is_first_button"]
+                    else:
+                        print(f"No VML control found for range: {range_str}")
 
             return shape_info
         except Exception as e:
             print(f"Error in _extract_shape_info: {str(e)}")
+            print(f"Shape info before error: {shape_info if 'shape_info' in locals() else 'Not created'}")
             return None
 
     def _get_coordinates(self, anchor):
@@ -624,6 +630,7 @@ class ExcelMetadataExtractor:
         processed_cells = set()
 
         try:
+            print("\n=== Starting region detection ===")
             with tempfile.TemporaryDirectory() as temp_dir:
                 temp_zip = os.path.join(temp_dir, 'temp.xlsx')
                 with open(temp_zip, 'wb') as f:
@@ -639,6 +646,9 @@ class ExcelMetadataExtractor:
 
                         for drawing in drawings:
                             drawing_type = drawing["type"]
+                            print(f"\n=== Processing {drawing_type} region: {drawing.get('range', 'No range')} ===")
+                            print(f"Region data: {json.dumps(drawing, indent=2)}")
+
                             region_info = {
                                 "regionType": drawing_type,
                                 "type": drawing_type,
@@ -668,6 +678,7 @@ class ExcelMetadataExtractor:
                                     region_info["is_first_button"] = drawing["is_first_button"]
 
                             drawing_regions.append(region_info)
+                            print(f"Added region with form control info: {json.dumps(region_info, indent=2)}")
 
                             from_col = drawing["coordinates"]["from"]["col"]
                             from_row = drawing["coordinates"]["from"]["row"]
