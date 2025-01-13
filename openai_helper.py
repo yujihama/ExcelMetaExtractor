@@ -83,8 +83,8 @@ class OpenAIHelper:
         try:
             data = json.loads(region_data)
             sample_data = {
-                "cells": data["cells"][:10],
-                "mergedCells": data.get("mergedCells", [])[:5]
+                "cells": data["cells"],
+                "mergedCells": data.get("mergedCells", [])
             }
 
             prompt = """
