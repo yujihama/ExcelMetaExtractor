@@ -287,9 +287,40 @@ class ExcelMetadataExtractor:
                 drawing_list.append(shape_info)
 
     def _process_drawings(self, anchor, excel_zip, drawing_list):
-        self._process_images(anchor, excel_zip, drawing_list)
-        self._process_charts(anchor, excel_zip, drawing_list)
-        self._process_other_elements(anchor, drawing_list)
+        coordinates = self._get_coordinates(anchor)
+        range_str = self._get_range_from_coordinates(coordinates)
+
+        # Process images
+        for pic in anchor.findall('.//xdr:pic', self.ns):
+            image_info = self._extract_picture_info(pic)
+            if image_info:
+                image_info["coordinates"] = coordinates
+                image_info["range"] = range_str
+                drawing_list.append(image_info)
+
+        # Process charts
+        chart = anchor.find('.//c:chart', self.ns)
+        if chart is not None:
+            chart_info = self._extract_chart_info(chart, excel_zip)
+            if chart_info:
+                chart_info["coordinates"] = coordinates
+                chart_info["range"] = range_str
+                drawing_list.append(chart_info)
+
+        # Process other elements
+        for grp in anchor.findall('.//xdr:grpSp', self.ns):
+            group_info = self._extract_group_info(grp)
+            if group_info:
+                group_info["coordinates"] = coordinates
+                group_info["range"] = range_str
+                drawing_list.append(group_info)
+
+        for cxn in anchor.findall('.//xdr:cxnSp', self.ns):
+            connector_info = self._extract_connector_info(cxn)
+            if connector_info:
+                connector_info["coordinates"] = coordinates
+                connector_info["range"] = range_str
+                drawing_list.append(connector_info)
 
     def _process_images(self, anchor, excel_zip, drawing_list):
         for pic in anchor.findall('.//xdr:pic', self.ns):
@@ -356,55 +387,46 @@ class ExcelMetadataExtractor:
         coords = {"from": {"col": 0, "row": 0}, "to": {"col": 0, "row": 0}}
 
         if anchor.tag.endswith('absoluteAnchor'):
-            coords = self._get_absolute_coordinates(anchor)
+            pos = anchor.find('.//xdr:pos', self.ns)
+            ext = anchor.find('.//xdr:ext', self.ns)
+
+            if pos is not None and ext is not None:
+                from_col = int(int(pos.get('x', '0')) / 914400)
+                from_row = int(int(pos.get('y', '0')) / 914400)
+                to_col = from_col + int(int(ext.get('cx', '0')) / 914400)
+                to_row = from_row + int(int(ext.get('cy', '0')) / 914400)
+
+                coords = {
+                    "from": {"col": from_col, "row": from_row},
+                    "to": {"col": to_col, "row": to_row}
+                }
         else:
-            coords = self._get_cell_coordinates(anchor)
+            from_elem = anchor.find('.//xdr:from', self.ns)
+            to_elem = anchor.find('.//xdr:to', self.ns) or anchor.find('.//xdr:ext', self.ns)
+
+            if from_elem is not None:
+                from_col = int(from_elem.find('xdr:col', self.ns).text)
+                from_row = int(from_elem.find('xdr:row', self.ns).text)
+
+                if to_elem is not None:
+                    if anchor.tag.endswith('twoCellAnchor'):
+                        to_col = int(to_elem.find('xdr:col', self.ns).text)
+                        to_row = int(to_elem.find('xdr:row', self.ns).text)
+                    else:  # oneCellAnchor
+                        cx = int(to_elem.get('cx', '0'))
+                        cy = int(to_elem.get('cy', '0'))
+                        to_col = from_col + (cx // 914400)
+                        to_row = from_row + (cy // 914400)
+                else:
+                    to_col = from_col + 1
+                    to_row = from_row + 1
+
+                coords = {
+                    "from": {"col": from_col, "row": from_row},
+                    "to": {"col": to_col, "row": to_row}
+                }
 
         return coords
-
-    def _get_absolute_coordinates(self, anchor):
-        pos = anchor.find('.//xdr:pos', self.ns)
-        ext = anchor.find('.//xdr:ext', self.ns)
-
-        if pos is not None and ext is not None:
-            from_col = int(int(pos.get('x', '0')) / 914400)
-            from_row = int(int(pos.get('y', '0')) / 914400)
-            to_col = from_col + int(int(ext.get('cx', '0')) / 914400)
-            to_row = from_row + int(int(ext.get('cy', '0')) / 914400)
-
-            return {
-                "from": {"col": from_col, "row": from_row},
-                "to": {"col": to_col, "row": to_row}
-            }
-        return {"from": {"col": 0, "row": 0}, "to": {"col": 0, "row": 0}}
-
-    def _get_cell_coordinates(self, anchor):
-        from_elem = anchor.find('.//xdr:from', self.ns)
-        to_elem = anchor.find('.//xdr:to', self.ns) or anchor.find('.//xdr:ext', self.ns)
-
-        if from_elem is None:
-            return {"from": {"col": 0, "row": 0}, "to": {"col": 0, "row": 0}}
-
-        from_col = int(from_elem.find('xdr:col', self.ns).text)
-        from_row = int(from_elem.find('xdr:row', self.ns).text)
-
-        if to_elem is not None:
-            if anchor.tag.endswith('twoCellAnchor'):
-                to_col = int(to_elem.find('xdr:col', self.ns).text)
-                to_row = int(to_elem.find('xdr:row', self.ns).text)
-            else:  # oneCellAnchor
-                cx = int(to_elem.get('cx', '0'))
-                cy = int(to_elem.get('cy', '0'))
-                to_col = from_col + (cx // 914400)
-                to_row = from_row + (cy // 914400)
-        else:
-            to_col = from_col + 1
-            to_row = from_row + 1
-
-        return {
-            "from": {"col": from_col, "row": from_row},
-            "to": {"col": to_col, "row": to_row}
-        }
 
     def _get_range_from_coordinates(self, coords):
         from_col = get_column_letter(coords["from"]["col"] + 1)
