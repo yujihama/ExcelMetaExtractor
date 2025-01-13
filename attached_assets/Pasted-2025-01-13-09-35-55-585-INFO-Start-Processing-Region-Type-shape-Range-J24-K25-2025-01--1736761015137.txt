@@ -1,0 +1,21 @@
+2025-01-13 09:35:55,585 [INFO] >>>>> Start Processing Region - Type: shape, Range: J24:K25
+2025-01-13 09:35:55,585 [INFO] <<<<< End Processing Region - Type: shape, Range: J24:K25
+2025-01-13 09:35:55,586 [INFO] >>>>> Start Processing Region - Type: shape, Range: J25:K27
+2025-01-13 09:35:55,586 [INFO] <<<<< End Processing Region - Type: shape, Range: J25:K27
+2025-01-13 09:35:55,586 [INFO] >>>>> Start Processing Region - Type: image, Range: E31:I46
+2025-01-13 09:35:55,586 [INFO] <<<<< End Processing Region - Type: image, Range: E31:I46
+2025-01-13 09:35:55,588 [ERROR] Error processing cell at row 3, col 2: 'ExcelMetadataExtractor' object has no attribute 'extract_region_cells'
+2025-01-13 09:35:55,588 [ERROR] Error processing cell at row 3, col 3: 'ExcelMetadataExtractor' object has no attribute 'extract_region_cells'
+2025-01-13 09:35:55,589 [ERROR] Error processing cell at row 3, col 4: 'ExcelMetadataExtractor' object has no attribute 'extract_region_cells'
+2025-01-13 09:35:55,590 [ERROR] Error processing cell at row 3, col 6: 'ExcelMetadataExtractor' object has no attribute 'extract_region_cells'
+2025-01-13 09:35:55,595 [ERROR] Error processing cell at row 3, col 7: 'ExcelMetadataExtractor' object has no attribute 'extract_region_cells'
+2025-01-13 09:35:55,596 [ERROR] Error processing cell at row 3, col 8: 'ExcelMetadataExtractor' object has no attribute 'extract_region_cells'
+2025-01-13 09:35:55,599 [ERROR] Error processing cell at row 4, col 4: 'ExcelMetadataExtractor' object has no attribute 'extract_region_cells'
+2025-01-13 09:35:55,606 [ERROR] Error processing cell at row 4, col 8: 'ExcelMetadataExtractor' object has no attribute 'extract_region_cells'
+2025-01-13 09:35:55,608 [ERROR] Error processing cell at row 5, col 3: 'ExcelMetadataExtractor' object has no attribute 'extract_region_cells'
+2025-01-13 09:35:55,617 [ERROR] Error processing cell at row 5, col 4: 'ExcelMetadataExtractor' object has no attribute 'extract_region_cells'
+2025-01-13 09:35:55,640 [ERROR] Error processing cell at row 5, col 7: 'ExcelMetadataExtractor' object has no attribute 'extract_region_cells'
+2025-01-13 09:35:55,641 [ERROR] Error processing cell at row 5, col 8: 'ExcelMetadataExtractor' object has no attribute 'extract_region_cells'
+2025-01-13 09:35:55,642 [ERROR] Error processing cell at row 6, col 2: 'ExcelMetadataExtractor' object has no attribute 'extract_region_cells'
+2025-01-13 09:35:55,643 [ERROR] Error processing cell at row 6, col 3: 'ExcelMetadataExtractor' object has no attribute 'extract_region_cells'
+2025-01-13 09:35:55,649 [ERROR] Error processing cell at row 6, col 4: 'ExcelMetadataExtractor' object has no attribute 'extract_region_cells'
