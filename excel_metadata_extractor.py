@@ -261,6 +261,7 @@ class ExcelMetadataExtractor:
                             continue
 
                         max_row, max_col = self.find_region_boundaries(sheet, row, col)
+                        self.logger.info(f"max_row:{max_row}, max_col:{get_column_letter(max_col)}")
                         if max_row == row and max_col == col:  # 単一セルの場合はスキップ
                             continue
 
