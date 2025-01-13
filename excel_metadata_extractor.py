@@ -49,6 +49,7 @@ class ExcelMetadataExtractor:
         }
 
     def get_sheet_drawing_relations(self, excel_zip) -> Dict[str, str]:
+        self.logger.method_start("get_sheet_drawing_relations")
         sheet_drawing_map = {}
         try:
             with excel_zip.open('xl/workbook.xml') as wb_xml:
@@ -88,9 +89,11 @@ class ExcelMetadataExtractor:
         except Exception as e:
             self.logger.error(f"Error in get_sheet_drawing_relations: {str(e)}")
 
+        self.logger.method_end("get_sheet_drawing_relations")
         return sheet_drawing_map
 
     def extract_chart_data(self, filepath, output_dir):
+        self.logger.method_start("extract_chart_data")
         workbook = load_workbook(filepath, data_only=True)
         chart_data_list = []
 
@@ -116,6 +119,7 @@ class ExcelMetadataExtractor:
                     self._extract_series_data(chart, sheet, chart_data)
 
                 chart_data_list.append(chart_data)
+        self.logger.method_end("extract_chart_data")
         return chart_data_list
 
     def _get_chart_title(self, chart):
@@ -672,6 +676,7 @@ class ExcelMetadataExtractor:
         return controls
 
     def detect_regions(self, sheet) -> List[Dict[str, Any]]:
+        self.logger.method_start("detect_regions")
         regions = []
         drawing_regions = []
         cell_regions = []
@@ -867,7 +872,10 @@ class ExcelMetadataExtractor:
         except Exception as e:
             self.logger.error(f"Error in detect_regions: {str(e)}")
             self.logger.exception(e)
+            self.logger.method_end("detect_regions")
             return []
+        finally:
+            self.logger.method_end("detect_regions")
 
     def get_file_metadata(self) -> Dict[str, Any]:
         try:
@@ -1032,6 +1040,7 @@ class ExcelMetadataExtractor:
             raise
 
     def extract_all_metadata(self) -> Dict[str, Any]:
+        self.logger.method_start("extract_all_metadata")
         try:
             file_metadata = self.get_file_metadata()
             sheets_metadata = self.get_sheet_metadata()
@@ -1052,4 +1061,7 @@ class ExcelMetadataExtractor:
         except Exception as e:
             self.logger.error(f"Error in extract_all_metadata: {str(e)}")
             self.logger.exception(e)
+            self.logger.method_end("extract_all_metadata")
             raise
+        finally:
+            self.logger.method_end("extract_all_metadata")
