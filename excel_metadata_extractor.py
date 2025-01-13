@@ -48,49 +48,24 @@ class ExcelMetadataExtractor:
             'v': 'urn:schemas-microsoft-com:vml'
         }
 
+    def __init__(self, file_obj):
+        self.file_obj = file_obj
+        self.workbook = load_workbook(file_obj, data_only=True)
+        self.openai_helper = OpenAIHelper()
+        self.MAX_CELLS_PER_ANALYSIS = 100
+        self.logger = Logger()
+        self.drawing_extractor = DrawingExtractor(self.logger)
+
+        # Store excel_zip for later use
+        temp_dir = tempfile.mkdtemp()
+        temp_zip = os.path.join(temp_dir, 'temp.xlsx')
+        with open(temp_zip, 'wb') as f:
+            self.file_obj.seek(0)
+            f.write(self.file_obj.read())
+        self.excel_zip = zipfile.ZipFile(temp_zip, 'r')
+
     def get_sheet_drawing_relations(self, excel_zip) -> Dict[str, str]:
-        self.logger.method_start("get_sheet_drawing_relations")
-        sheet_drawing_map = {}
-        try:
-            with excel_zip.open('xl/workbook.xml') as wb_xml:
-                wb_tree = ET.parse(wb_xml)
-                wb_root = wb_tree.getroot()
-                sheets = {
-                    sheet.get(f'{{{self.ns["r"]}}}id'): sheet.get('name', '')
-                    for sheet in wb_root.findall('.//sp:sheet', self.ns)
-                }
-
-            with excel_zip.open('xl/_rels/workbook.xml.rels') as rels_xml:
-                rels_tree = ET.parse(rels_xml)
-                rels_root = rels_tree.getroot()
-
-                for rel in rels_root.findall('.//pr:Relationship', self.ns):
-                    r_id = rel.get('Id')
-                    if r_id in sheets:
-                        sheet_name = sheets[r_id]
-                        target = rel.get('Target')
-                        target = target[1:] if target.startswith('/xl/') else f'xl/{target}' if not target.startswith('xl/') else target
-
-                        sheet_base = os.path.splitext(target)[0]
-                        sheet_rels_path = f"{sheet_base}.xml.rels"
-                        sheet_rels_filename = f'xl/worksheets/_rels/{os.path.basename(sheet_rels_path)}'
-
-                        if sheet_rels_filename in excel_zip.namelist():
-                            with excel_zip.open(sheet_rels_filename) as sheet_rels:
-                                sheet_rels_tree = ET.parse(sheet_rels)
-                                sheet_rels_root = sheet_rels_tree.getroot()
-
-                                for sheet_rel in sheet_rels_root.findall('.//pr:Relationship', self.ns):
-                                    rel_target = sheet_rel.get('Target', '')
-                                    if 'drawing' in rel_target.lower():
-                                        drawing_path = rel_target.replace('..', 'xl')
-                                        sheet_drawing_map[sheet_name] = drawing_path
-
-        except Exception as e:
-            self.logger.error(f"Error in get_sheet_drawing_relations: {str(e)}")
-
-        self.logger.method_end("get_sheet_drawing_relations")
-        return sheet_drawing_map
+        return self.drawing_extractor.get_sheet_drawing_relations(excel_zip)
 
     def extract_chart_data(self, filepath, output_dir):
         self.logger.method_start("extract_chart_data")
