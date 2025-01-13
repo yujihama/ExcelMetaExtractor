@@ -178,6 +178,9 @@ class ExcelMetadataExtractor:
         processed_cells = set()
 
         try:
+            self.logger.info("Starting region detection...")
+            self.logger.info(f"Sheet name: {sheet.title}")
+            self.logger.info(f"Sheet dimensions: {sheet.max_row} rows x {sheet.max_column} columns")
             with tempfile.TemporaryDirectory() as temp_dir:
                 temp_zip = os.path.join(temp_dir, 'temp.xlsx')
                 with open(temp_zip, 'wb') as f:
@@ -339,6 +342,16 @@ class ExcelMetadataExtractor:
 
             regions.extend(drawing_regions)
             regions.extend(cell_regions)
+
+            # Log all detected regions
+            self.logger.info(f"Total regions detected: {len(regions)}")
+            self.logger.info("=== Drawing Regions ===")
+            for idx, region in enumerate(drawing_regions):
+                self.logger.info(f"Drawing Region {idx + 1}: Type={region.get('regionType', 'unknown')}, Range={region.get('range', 'N/A')}")
+            
+            self.logger.info("=== Cell Regions ===")
+            for idx, region in enumerate(cell_regions):
+                self.logger.info(f"Cell Region {idx + 1}: Type={region.get('regionType', 'unknown')}, Range={region.get('range', 'N/A')}")
 
             if regions:
                 try:
