@@ -353,6 +353,7 @@ class ExcelMetadataExtractor:
                 drawing_list.append(connector_info)
 
     def _extract_shape_info(self, sp, anchor, vml_controls):
+        """図形情報を抽出し、VMLコントロールとマッチングする"""
         try:
             shape_info = {
                 "type": "shape",
@@ -363,42 +364,51 @@ class ExcelMetadataExtractor:
                 "coordinates": self._get_coordinates(anchor),
             }
 
+            # 図形の基本情報を取得
             name_elem = sp.find('.//xdr:nvSpPr/xdr:cNvPr', self.ns)
             if name_elem is not None:
                 shape_info["name"] = name_elem.get('name', '')
                 shape_info["hidden"] = name_elem.get('hidden', '0') == '1'
                 shape_info["description"] = name_elem.get('descr', '')
+                shape_id = name_elem.get('id')
 
-                shape_id = name_elem.get('id')  # shape IDを取得
                 if shape_id:
+                    # 座標情報をセル範囲として保存
                     range_str = self._get_range_from_coordinates(shape_info["coordinates"])
                     shape_info["range"] = range_str
                     print(f"\nLooking for VML control - Shape ID: {shape_id}")
-                    print(f"Available VML controls: {list(vml_controls.keys())}")
 
-                    # シェイプIDからVMLコントロールを検索
-                    vml_control = None
+                    # Available VML controlsの一覧を表示
+                    available_controls = [(ctrl['id'], ctrl.get('position', 'No position')) for ctrl in vml_controls]
+                    print(f"Available VML controls: {available_controls}")
+
+                    # IDに基づいてVMLコントロールを検索
+                    matching_control = None
                     for control in vml_controls.values():
-                        if control.get('numeric_id') == shape_id:
-                            vml_control = control
+                        if control['position'] == range_str:
+                            matching_control = control
+                            break
+                        # バックアップとして数値IDでの比較も実施
+                        elif control.get('numeric_id') == shape_id:
+                            matching_control = control
                             break
 
-                    if vml_control:
-                        print(f"Found VML control: {json.dumps(vml_control, indent=2)}")
+                    if matching_control:
+                        print(f"Found matching VML control: {json.dumps(matching_control, indent=2, ensure_ascii=False)}")
                         shape_info.update({
-                            "text_content": vml_control.get("text", ""),
-                            "form_control_type": vml_control.get("type"),
-                            "form_control_state": vml_control.get("checked", False),
+                            "text_content": matching_control.get("text", ""),
+                            "form_control_type": matching_control.get("type"),
+                            "form_control_state": matching_control.get("checked", False),
                         })
-                        if vml_control.get("is_first_button") is not None:
-                            shape_info["is_first_button"] = vml_control["is_first_button"]
+                        if matching_control.get("is_first_button") is not None:
+                            shape_info["is_first_button"] = matching_control["is_first_button"]
                     else:
-                        print(f"No VML control found for ID: {shape_id}")
+                        print(f"No VML control found for range: {range_str}")
 
             return shape_info
         except Exception as e:
             print(f"Error in _extract_shape_info: {str(e)}")
-            print(f"Shape info before error: {shape_info if 'shape_info' in locals() else 'Not created'}")
+            print(traceback.format_exc())
             return None
 
     def _get_coordinates(self, anchor):
@@ -584,55 +594,67 @@ class ExcelMetadataExtractor:
                     control_type_value = control_type.get('ObjectType')
 
                     if control_type_value in ['Checkbox', 'Radio']:
-                        # shape IDを直接取得（例：_x0000_s1027）
                         shape_id = element.get('id', '')
-                        # IDの数値部分を取得（例：1027）
                         try:
+                            # VML IDから数値部分を抽出（例：_x0000_s1027から1027を取得）
                             numeric_id = shape_id.split('_s')[-1]
-                            print(f"Processing shape with ID: {shape_id}, numeric part: {numeric_id}")
+
+                            # 抽出したIDをint型に変換して保存
+                            numeric_id = int(numeric_id) if numeric_id.isdigit() else None
+
+                            print(f"\nProcessing shape with ID: {shape_id}, numeric part: {numeric_id}")
                         except (ValueError, IndexError) as e:
                             print(f"Error extracting numeric ID from shape_id {shape_id}: {str(e)}")
                             continue
 
                         control = {
                             'id': shape_id,
-                            'numeric_id': numeric_id,
+                            'numeric_id': str(numeric_id) if numeric_id is not None else None,
                             'type': 'checkbox' if control_type_value == 'Checkbox' else 'radio',
                             'checked': False,
                             'position': '',
                             'text': ''
                         }
 
+                        # アンカー情報の解析（セルの位置）
                         anchor = control_type.find('.//{urn:schemas-microsoft-com:office:excel}Anchor')
                         if anchor is not None and anchor.text:
                             try:
                                 coords = [int(x) for x in anchor.text.split(',')]
-                                from_col = get_column_letter(coords[0] + 1)
-                                to_col = get_column_letter(coords[2] + 1)
-                                control['position'] = f"{from_col}{coords[1] + 1}:{to_col}{coords[3] + 1}"
+                                from_col = coords[0]
+                                from_row = coords[1]
+                                to_col = coords[2]
+                                to_row = coords[3]
+
+                                # セル範囲を文字列として保存
+                                control['position'] = f"{get_column_letter(from_col + 1)}{from_row + 1}:{get_column_letter(to_col + 1)}{to_row + 1}"
+                                print(f"Control position: {control['position']}")
                             except (ValueError, IndexError) as e:
                                 print(f"Error processing anchor coordinates: {str(e)}")
                                 continue
 
+                        # チェックボックスの状態
                         checked = control_type.find('.//{urn:schemas-microsoft-com:office:excel}Checked')
                         if checked is not None and checked.text:
                             control['checked'] = checked.text == '1'
 
+                        # テキストボックスの内容
                         text_box = control_type.find('.//{urn:schemas-microsoft-com:office:excel}TextBox')
                         if text_box is not None and text_box.text:
                             control['text'] = text_box.text
 
+                        # ラジオボタンの場合、グループ内の最初のボタンかどうかを確認
                         if control_type_value == 'Radio':
                             first_button = control_type.find('.//{urn:schemas-microsoft-com:office:excel}FirstButton')
                             if first_button is not None:
                                 control['is_first_button'] = first_button.text == '1'
 
-                        print(f"Found VML control with ID: {shape_id}")
+                        print(f"Added VML control: {json.dumps(control, indent=2, ensure_ascii=False)}")
                         controls.append(control)
 
         except Exception as e:
             print(f"Error parsing VML content: {str(e)}")
-            print(f"VML content: {vml_content[:200]}...")  # 最初の200文字のみ表示
+            print(traceback.format_exc())
 
         return controls
 

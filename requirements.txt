@@ -4,3 +4,6 @@ pandas>=2.2.3
 streamlit>=1.41.1
 matplotlib>=3.8.2
 python-dotenv
+numpy
+openai
+openai
