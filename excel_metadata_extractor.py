@@ -692,6 +692,7 @@ class ExcelMetadataExtractor:
                         drawings = self.extract_drawing_info(sheet, excel_zip, drawing_path)
 
                         for drawing in drawings:
+                            self.logger.start_region_processing(drawing)
                             drawing_type = drawing["type"]
 
                             region_info = {
@@ -725,6 +726,7 @@ class ExcelMetadataExtractor:
                                     region_info["is_first_button"] = drawing["is_first_button"]
 
                             drawing_regions.append(region_info)
+                            self.logger.end_region_processing(region_info)
 
                             if "coordinates" in drawing:
                                 from_col = drawing["coordinates"]["from"]["col"]
