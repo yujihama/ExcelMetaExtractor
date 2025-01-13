@@ -4,7 +4,7 @@ from openpyxl.utils import get_column_letter
 
 class RegionDetector:
     def __init__(self):
-        pass
+        self.logger = Logger()
 
     def find_region_boundaries(self, sheet, start_row: int, start_col: int) -> Tuple[int, int]:
         max_row = start_row
