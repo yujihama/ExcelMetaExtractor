@@ -32,7 +32,7 @@ class ExcelMetadataExtractor:
         self.openai_helper = OpenAIHelper()
         self.MAX_CELLS_PER_ANALYSIS = 100
         self.logger = Logger()
-        self.drawing_extractor = DrawingExtractor(self.logger)
+        self.drawing_extractor = DrawingExtractor(self.logger, self.openai_helper) # Added openai_helper
         self.chart_processor = ChartProcessor(self.logger)
         self.cell_processor = CellProcessor(self.logger)
         self.region_analyzer = RegionAnalyzer(self.logger, self.openai_helper)
@@ -81,7 +81,7 @@ class ExcelMetadataExtractor:
                     vml_controls.extend(controls) #extend the list instead of overwriting.
             except Exception as e:
                 self.logger.error(f"Error processing VML file {vml_file}: {str(e)}")
-                self.logger.exception(e)
+                self.logger.error(f"Error processing VML file {vml_file}: {traceback.format_exc()}") # added traceback
 
         return vml_controls
 
@@ -217,7 +217,7 @@ class ExcelMetadataExtractor:
 
         except Exception as e:
             self.logger.error(f"Error parsing VML content: {str(e)}")
-            self.logger.exception(e)
+            self.logger.error(f"Error parsing VML content: {traceback.format_exc()}") # added traceback
             return []
 
     def _process_drawing_regions(self, sheet, excel_zip, sheet_drawing_map) -> Tuple[List[Dict[str, Any]], Set[str]]:
@@ -269,7 +269,7 @@ class ExcelMetadataExtractor:
         return region_info
 
 
-            
+
 
     def detect_regions(self, sheet) -> List[Dict[str, Any]]:
         self.logger.method_start("detect_regions")
@@ -466,8 +466,7 @@ class ExcelMetadataExtractor:
             return regions
 
         except Exception as e:
-            self.logger.error(f"Error in detect_regions: {str(e)}")
-            self.logger.exception(e)
+            self.logger.error(f"Error in detect_regions: {str(e)}\n{traceback.format_exc()}")
             self.logger.method_end("detect_regions")
             return []
         finally:
@@ -490,7 +489,7 @@ class ExcelMetadataExtractor:
             }
         except Exception as e:
             self.logger.error(f"Error in get_file_metadata: {str(e)}")
-            self.logger.exception(e)
+            self.logger.error(f"Error in get_file_metadata: {traceback.format_exc()}") # added traceback
             raise
 
     def find_region_boundaries(self, sheet, start_row: int, start_col: int) -> Tuple[int, int]:
@@ -572,7 +571,7 @@ class ExcelMetadataExtractor:
             return sheets_metadata
         except Exception as e:
             self.logger.error(f"Error in get_sheet_metadata: {str(e)}")
-            self.logger.exception(e)
+            self.logger.error(f"Error in get_sheet_metadata: {traceback.format_exc()}") # added traceback
             raise
 
     def extract_all_metadata(self) -> Dict[str, Any]:
@@ -596,7 +595,7 @@ class ExcelMetadataExtractor:
             return metadata
         except Exception as e:
             self.logger.error(f"Error in extract_all_metadata: {str(e)}")
-            self.logger.exception(e)
+            self.logger.error(f"Error in extract_all_metadata: {traceback.format_exc()}") # added traceback
             self.logger.method_end("extract_all_metadata")
             raise
         finally:
