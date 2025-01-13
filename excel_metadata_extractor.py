@@ -13,6 +13,7 @@ from openpyxl.utils import get_column_letter
 from typing import Dict, Any, List, Optional, Tuple
 from openai_helper import OpenAIHelper
 from chart_processor import ChartProcessor
+from cell_processor import CellProcessor
 import traceback
 from pathlib import Path
 import tempfile
