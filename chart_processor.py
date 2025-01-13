@@ -201,7 +201,7 @@ class ChartProcessor:
                     rels_root = rels_tree.getroot()
                     for rel in rels_root.findall('.//{http://schemas.openxmlformats.org/package/2006/relationships}Relationship'):
                         if rel.get('Id') == chart_id:
-                            chart_path = 'xl/' + rel.get('Target').replace('..', '')
+                            chart_path = 'xl' + rel.get('Target').replace('..', '')
                             self.logger.debug(f"Found chart_path: {chart_path}")
                             break
             
