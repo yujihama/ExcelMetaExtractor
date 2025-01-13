@@ -266,7 +266,7 @@ class ExcelMetadataExtractor:
         return drawing_list
 
     def _get_vml_controls(self, excel_zip):
-        vml_controls = {}
+        vml_controls = []
         vml_files = [f for f in excel_zip.namelist() if f.startswith('xl/drawings/') and f.endswith('.vml')]
         print(f"\nFound VML files: {vml_files}")
 
@@ -276,9 +276,8 @@ class ExcelMetadataExtractor:
                 with excel_zip.open(vml_file) as f:
                     vml_content = f.read().decode('utf-8')
                     controls = self._parse_vml_for_controls(vml_content)
+                    vml_controls.extend(controls) #extend the list instead of overwriting.
                     for control in controls:
-                        # IDを直接キーとして使用
-                        vml_controls[control['id']] = control
                         print(f"Added control with ID {control['id']}: {json.dumps(control, indent=2)}")
             except Exception as e:
                 print(f"Error processing VML file {vml_file}: {str(e)}")
@@ -378,18 +377,10 @@ class ExcelMetadataExtractor:
                     shape_info["range"] = range_str
                     print(f"\nLooking for VML control - Shape ID: {shape_id}")
 
-                    # Available VML controlsの一覧を表示
-                    available_controls = [(ctrl['id'], ctrl.get('position', 'No position')) for ctrl in vml_controls]
-                    print(f"Available VML controls: {available_controls}")
-
                     # IDに基づいてVMLコントロールを検索
                     matching_control = None
-                    for control in vml_controls.values():
-                        if control['position'] == range_str:
-                            matching_control = control
-                            break
-                        # バックアップとして数値IDでの比較も実施
-                        elif control.get('numeric_id') == shape_id:
+                    for control in vml_controls:
+                        if control.get('numeric_id') == shape_id:
                             matching_control = control
                             break
 
@@ -403,7 +394,7 @@ class ExcelMetadataExtractor:
                         if matching_control.get("is_first_button") is not None:
                             shape_info["is_first_button"] = matching_control["is_first_button"]
                     else:
-                        print(f"No VML control found for range: {range_str}")
+                        print(f"No VML control found for ID: {shape_id}")
 
             return shape_info
         except Exception as e:
@@ -805,7 +796,7 @@ class ExcelMetadataExtractor:
                     "regionType": "metadata",
                     "totalRegions": len(regions),
                     "drawingRegions": len(drawing_regions),
-                    "cellRegions": len(cell_regions)
+                    "cellRegionsCount": len(cell_regions)
                 }
 
                 sheet_data = {

@@ -6,11 +6,13 @@ from openai import OpenAI
 import streamlit as st
 from dotenv import load_dotenv
 
+
 class OpenAIHelper:
+
     def __init__(self):
         load_dotenv()
         self.client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-        self.model = "gpt-4-vision-preview"
+        self.model = "gpt-4o"
 
     def summarize_region(self, region: Dict[str, Any]) -> str:
         """Generate a summary for a region based on its content"""
@@ -18,47 +20,51 @@ class OpenAIHelper:
             if region["regionType"] == "table":
                 cells = region.get("sampleCells", [])
                 header_structure = region.get("headerStructure", {})
-                prompt = (
-                    "以下のExcelテーブル領域が何について記載されているか簡潔に説明してください:\n"
-                    "ヘッダー構造: %s\n"
-                    "データサンプル: %s"
-                ) % (json.dumps(header_structure, ensure_ascii=False), json.dumps(cells[:2], ensure_ascii=False))
+                prompt = ("以下のExcelテーブル領域が何について記載されているか簡潔に説明してください:\n"
+                          "ヘッダー構造: %s\n"
+                          "データサンプル: %s") % (
+                              json.dumps(header_structure, ensure_ascii=False),
+                              json.dumps(cells[:2], ensure_ascii=False))
             elif region["regionType"] == "chart":
-                prompt = (
-                    "以下のグラフが何について記載されているか簡潔に説明してください:\n"
-                    "グラフタイプ: %s\n"
-                    "データ範囲: %s\n"
-                    "内容: %s"
-                ) % (region['chartType'], region['series'][0]['data_range'], region['chart_data_json'])
+                prompt = ("以下のグラフが何について記載されているか簡潔に説明してください:\n"
+                          "グラフタイプ: %s\n"
+                          "データ範囲: %s\n"
+                          "内容: %s") % (region['chartType'],
+                                       region['series'][0]['data_range'],
+                                       region['chart_data_json'])
             elif region["regionType"] == "image":
                 gpt4o_analysis = region.get("gpt4o_analysis", {})
-                prompt = (
-                    "以下の画像について簡潔に説明してください:\n"
-                    "画像の種類: %s\n"
-                    "内容: %s\n"
-                    "特徴: %s\n"
-                    "位置: %s\n"
-                    "名前: %s\n"
-                    "説明: %s"
-                ) % (gpt4o_analysis.get('imageType', '不明'), gpt4o_analysis.get('content', '不明'), ', '.join(gpt4o_analysis.get('features', [])), region['range'], region.get('name', ''), region.get('description', ''))
+                prompt = ("以下の画像について簡潔に説明してください:\n"
+                          "画像の種類: %s\n"
+                          "内容: %s\n"
+                          "特徴: %s\n"
+                          "位置: %s\n"
+                          "名前: %s\n"
+                          "説明: %s") % (gpt4o_analysis.get('imageType', '不明'),
+                                       gpt4o_analysis.get('content', '不明'),
+                                       ', '.join(
+                                           gpt4o_analysis.get('features', [])),
+                                       region['range'], region.get('name', ''),
+                                       region.get('description', ''))
             elif region["regionType"] == "shape":
-                prompt = (
-                    "以下のExcelの図形が何について記載されているか簡潔に説明してください:\n"
-                    "内容: %s"
-                ) % json.dumps(region, ensure_ascii=False)
+                prompt = ("以下のExcelの図形が何について記載されているか簡潔に説明してください:\n"
+                          "内容: %s") % json.dumps(region, ensure_ascii=False)
             else:
-                prompt = (
-                    "以下のExcel領域が何について記載されているか簡潔に説明してください:\n"
-                    "領域タイプ: %s\n"
-                    "範囲: %s\n"
-                    "内容: %s"
-                ) % (region['regionType'], region['range'], json.dumps(region, ensure_ascii=False)[:200])
+                prompt = ("以下のExcel領域が何について記載されているか簡潔に説明してください:\n"
+                          "領域タイプ: %s\n"
+                          "範囲: %s\n"
+                          "内容: %s") % (region['regionType'], region['range'],
+                                       json.dumps(region,
+                                                  ensure_ascii=False)[:200])
 
-            response = self.client.chat.completions.create(
-                model="gpt-4",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=1000
-            )
+            response = self.client.chat.completions.create(model="gpt-4o",
+                                                           messages=[{
+                                                               "role":
+                                                               "user",
+                                                               "content":
+                                                               prompt
+                                                           }],
+                                                           max_tokens=1000)
             return response.choices[0].message.content
         except Exception as e:
             print(f"Error generating summary: {str(e)}")
@@ -102,11 +108,13 @@ Respond in JSON format:
 """.format(data=json.dumps(sample_data, indent=2))
 
             response = self.client.chat.completions.create(
-                model="gpt-4",
-                messages=[{"role": "user", "content": prompt}],
+                model="gpt-4o",
+                messages=[{
+                    "role": "user",
+                    "content": prompt
+                }],
                 response_format={"type": "json_object"},
-                max_tokens=2000
-            )
+                max_tokens=2000)
             return json.loads(response.choices[0].message.content)
         except Exception as e:
             print(f"Error in analyze_region_type: {str(e)}")
@@ -162,7 +170,7 @@ Respond in JSON format:
 
         try:
             response = self.client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-4o",
                 messages=[{
                     "role": "user",
                     "content": prompt
@@ -217,7 +225,8 @@ Respond in JSON format:
 - 表/グラフの見た目や内容の特徴をしっかりとらえて要約してください。
 - sheetに含まれていない情報は含めないでください。
 - 推測で記載しないでください。
-""" % (sheet_data.get('sheetName', ''), len(regions), "\n".join(region_summaries))
+""" % (sheet_data.get('sheetName',
+                      ''), len(regions), "\n".join(region_summaries))
             response = self.client.chat.completions.create(model=self.model,
                                                            messages=[{
                                                                "role":
@@ -254,9 +263,10 @@ Respond in JSON format:
                 print(f"Image data length: {len(base64_image)}")
 
                 response = self.client.chat.completions.create(
-                    model="gpt-4-vision-preview",
+                    model="gpt-4o",
                     messages=[{
-                        "role": "user",
+                        "role":
+                        "user",
                         "content": [{
                             "type": "text",
                             "text": prompt
@@ -268,13 +278,13 @@ Respond in JSON format:
                         }]
                     }],
                     max_tokens=500,
-                    response_format={"type": "json_object"}
-                )
+                    response_format={"type": "json_object"})
 
                 # APIレスポンスのデバッグ情報
                 print("\nGPT-4 Vision API Response:")
                 print(f"Response status: Success")
-                print(f"Response content: {response.choices[0].message.content}")
+                print(
+                    f"Response content: {response.choices[0].message.content}")
 
                 # レスポンスのパース
                 result = json.loads(response.choices[0].message.content)
@@ -284,15 +294,21 @@ Respond in JSON format:
                     raise ValueError("API response is not a dictionary")
 
                 required_keys = ["imageType", "content", "features"]
-                missing_keys = [key for key in required_keys if key not in result]
+                missing_keys = [
+                    key for key in required_keys if key not in result
+                ]
                 if missing_keys:
-                    raise ValueError(f"Missing required keys in API response: {missing_keys}")
+                    raise ValueError(
+                        f"Missing required keys in API response: {missing_keys}"
+                    )
 
                 return result
 
             except json.JSONDecodeError as json_error:
                 print(f"\nJSON Decode Error: {str(json_error)}")
-                print(f"Raw response content: {response.choices[0].message.content}")
+                print(
+                    f"Raw response content: {response.choices[0].message.content}"
+                )
                 raise
 
             except Exception as api_error:
