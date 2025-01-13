@@ -701,7 +701,7 @@ class ExcelMetadataExtractor:
                     self.file_obj.seek(0)
                     f.write(self.file_obj.read())
 
-                with zipfile.ZipFile(temp_zip, 'r') as excel_zip:
+                with zipfile.ZipFile(tempzip, 'r') as excel_zip:
                     sheet_drawing_map = self.get_sheet_drawing_relations(excel_zip)
                     sheet_name = sheet.title
                     if sheet_name in sheet_drawing_map:
@@ -738,7 +738,6 @@ class ExcelMetadataExtractor:
                             elif drawing_type == "smartart" and "diagram_type" in drawing:
                                 region_info["diagram_type"] = drawing["diagram_type"]
 
-                            # フォームコントロール情報の追加
                             if "form_control_type" in drawing:
                                 region_info["form_control_type"] = drawing["form_control_type"]
                                 region_info["form_control_state"] = drawing.get("form_control_state", False)
@@ -748,110 +747,140 @@ class ExcelMetadataExtractor:
                             drawing_regions.append(region_info)
                             print(f"Added region with form control info: {json.dumps(region_info, indent=2)}")
 
-                            from_col = drawing["coordinates"]["from"]["col"]
-                            from_row = drawing["coordinates"]["from"]["row"]
-                            to_col = drawing["coordinates"]["to"]["col"]
-                            to_row = drawing["coordinates"]["to"]["row"]
+                            if "coordinates" in drawing:
+                                from_col = drawing["coordinates"]["from"]["col"]
+                                from_row = drawing["coordinates"]["from"]["row"]
+                                to_col = drawing["coordinates"]["to"]["col"]
+                                to_row = drawing["coordinates"]["to"]["row"]
 
-                            for r in range(from_row, to_row + 1):
-                                for c in range(from_col, to_col + 1):
-                                    processed_cells.add(f"{get_column_letter(c+1)}{r+1}")
+                                for r in range(from_row, to_row + 1):
+                                    for c in range(from_col, to_col + 1):
+                                        processed_cells.add(f"{get_column_letter(c+1)}{r+1}")
 
             # セル領域の処理
+            print("\n=== Processing cell regions ===")
             for row in range(1, min(sheet.max_row + 1, 100)):
                 for col in range(1, min(sheet.max_column + 1, 20)):
-                    cell_coord = f"{get_column_letter(col)}{row}"
+                    try:
+                        cell_coord = f"{get_column_letter(col)}{row}"
+                        if cell_coord in processed_cells:
+                            continue
 
-                    if cell_coord in processed_cells or sheet.cell(row=row, column=col).value is None:
+                        cell = sheet.cell(row=row, column=col)
+                        if cell.value is None:
+                            continue
+
+                        # 区切り文字のみのセルはスキップ
+                        if isinstance(cell.value, str) and len(cell.value.strip()) == 1 and cell.value.strip() in '-_=':
+                            continue
+
+                        max_row, max_col = self.find_region_boundaries(sheet, row, col)
+                        if max_row == row and max_col == col:  # 単一セルの場合はスキップ
+                            continue
+
+                        cells_data = self.extract_region_cells(sheet, row, col, max_row, max_col)
+                        if not cells_data:  # 空のデータの場合はスキップ
+                            continue
+
+                        merged_cells = self.get_merged_cells_info(sheet, row, col, max_row, max_col)
+
+                        # 処理済みのセルを記録
+                        for r in range(row, max_row + 1):
+                            for c in range(col, max_col + 1):
+                                processed_cells.add(f"{get_column_letter(c)}{r}")
+
+                        try:
+                            region_analysis = self.openai_helper.analyze_region_type(
+                                json.dumps({
+                                    "cells": cells_data,
+                                    "mergedCells": merged_cells
+                                }))
+
+                            if isinstance(region_analysis, str):
+                                region_analysis = json.loads(region_analysis)
+
+                            region_type = region_analysis.get("regionType", "unknown")
+                            region_metadata = {
+                                "regionType": region_type,
+                                "range": f"{get_column_letter(col)}{row}:{get_column_letter(max_col)}{max_row}",
+                                "sampleCells": cells_data,
+                                "mergedCells": merged_cells
+                            }
+
+                            if region_type == "table":
+                                try:
+                                    header_analysis = self.openai_helper.analyze_table_structure(
+                                        json.dumps(cells_data), json.dumps(merged_cells))
+
+                                    if isinstance(header_analysis, str):
+                                        header_analysis = json.loads(header_analysis)
+
+                                    header_rows = header_analysis.get("headerStructure", {}).get("rows", [])
+                                    header_range = "N/A"
+
+                                    if header_rows:
+                                        min_header_row = min(header_rows)
+                                        max_header_row = max(header_rows)
+                                        header_range = (f"{min_header_row}" if min_header_row == max_header_row
+                                                       else f"{min_header_row}-{max_header_row}")
+
+                                    region_metadata["headerStructure"] = {
+                                        "headerType": header_analysis.get("headerStructure", {}).get("type", "none"),
+                                        "headerRows": header_rows,
+                                        "headerRange": header_range,
+                                        "mergedCells": bool(merged_cells),
+                                        "start_row": row
+                                    }
+                                except Exception as e:
+                                    print(f"Error analyzing table header: {str(e)}")
+                                    continue
+
+                            cell_regions.append(region_metadata)
+                            print(f"Added cell region: {json.dumps(region_metadata, indent=2)}")
+
+                        except Exception as e:
+                            print(f"Error analyzing region at {cell_coord}: {str(e)}")
+                            continue
+
+                    except Exception as e:
+                        print(f"Error processing cell at row {row}, col {col}: {str(e)}")
                         continue
-
-                    max_row, max_col = self.find_region_boundaries(sheet, row, col)
-
-                    cell_value = sheet.cell(row=row, column=col).value
-                    if isinstance(cell_value, str) and len(cell_value.strip()) == 1 and cell_value.strip() in '-_=':
-                        continue
-
-                    cells_data = self.extract_region_cells(sheet, row, col, max_row, max_col)
-                    merged_cells = self.get_merged_cells_info(sheet, row, col, max_row, max_col)
-
-                    for r in range(row, max_row + 1):
-                        for c in range(col, max_col + 1):
-                            processed_cells.add(f"{get_column_letter(c)}{r}")
-
-                    region_analysis = self.openai_helper.analyze_region_type(
-                        json.dumps({
-                            "cells": cells_data,
-                            "mergedCells": merged_cells
-                        }))
-
-                    if isinstance(region_analysis, str):
-                        region_analysis = json.loads(region_analysis)
-
-                    region_type = region_analysis.get("regionType", "unknown")
-                    region_metadata = {
-                        "regionType": region_type,
-                        "range": f"{get_column_letter(col)}{row}:{get_column_letter(max_col)}{max_row}",
-                        "sampleCells": cells_data,
-                        "mergedCells": merged_cells
-                    }
-
-                    if region_type == "table":
-                        header_structure = self.detect_header_structure(cells_data, merged_cells)
-                        if isinstance(header_structure, str):
-                            header_structure = json.loads(header_structure)
-
-                        header_range = "N/A"
-                        if header_structure.get("headerRows"):
-                            header_rows = header_structure["headerRows"]
-                            if header_rows:
-                                min_header_row = min(header_rows)
-                                max_header_row = max(header_rows)
-                                if header_structure.get("headerType") == "single":
-                                    header_range = f"{min_header_row}"
-                                else:
-                                    header_range = f"{min_header_row}-{max_header_row}"
-
-                        region_metadata["headerStructure"] = {
-                            "headerType": header_structure.get("headerType", "none"),
-                            "headerRowsCount": header_structure.get("headerRowsCount", 0),
-                            "headerRows": header_structure.get("headerRows", []),
-                            "headerRange": header_range,
-                            "mergedCells": bool(merged_cells),
-                            "start_row": row
-                        }
-
-                    cell_regions.append(region_metadata)
-
-                    if len(regions) >= 10:
-                        return regions
 
             # サマリーの生成
-            for idx, region in enumerate(drawing_regions + cell_regions):
-                if "regionType" not in region:
-                    region["regionType"] = region.get("type", "unknown")
-
-                region["summary"] = self.openai_helper.summarize_region(region)
+            print("\n=== Generating summaries ===")
+            for region in drawing_regions + cell_regions:
+                try:
+                    if "regionType" not in region:
+                        region["regionType"] = region.get("type", "unknown")
+                    region["summary"] = self.openai_helper.summarize_region(region)
+                except Exception as e:
+                    print(f"Error generating summary for region: {str(e)}")
+                    continue
 
             regions.extend(drawing_regions)
             regions.extend(cell_regions)
 
             if regions:
-                metadata = {
-                    "type": "metadata",
-                    "regionType": "metadata",
-                    "totalRegions": len(regions),
-                    "drawingRegions": len(drawing_regions),
-                    "cellRegionsCount": len(cell_regions)
-                }
+                try:
+                    metadata = {
+                        "type": "metadata",
+                        "regionType": "metadata",
+                        "totalRegions": len(regions),
+                        "drawingRegions": len(drawing_regions),
+                        "cellRegions": len(cell_regions)
+                    }
 
-                sheet_data = {
-                    "sheetName": sheet.title,
-                    "regions": regions,
-                    "drawingRegionsCount": len(drawing_regions),
-                    "cellRegionsCount": len(cell_regions)
-                }
-                metadata["summary"] = self.openai_helper.generate_sheet_summary(sheet_data)
-                regions.append(metadata)
+                    sheet_data = {
+                        "sheetName": sheet.title,
+                        "regions": regions,
+                        "drawingRegionsCount": len(drawing_regions),
+                        "cellRegionsCount": len(cell_regions)
+                    }
+
+                    metadata["summary"] = self.openai_helper.generate_sheet_summary(sheet_data)
+                    regions.append(metadata)
+                except Exception as e:
+                    print(f"Error generating metadata: {str(e)}")
 
             return regions
 
