@@ -5,6 +5,7 @@ from typing import Dict, Any, Union, List
 from openai import OpenAI
 import streamlit as st
 from dotenv import load_dotenv
+from logger import Logger
 
 
 class OpenAIHelper:
