@@ -478,6 +478,9 @@ class ExcelMetadataExtractor:
                     metadata["summary"] = self.openai_helper.generate_sheet_summary(sheet_data)
                     regions.append(metadata)
 
+    except Exception as e:
+                    self.logger.error(f"Error generating metadata: {str(e)}")
+
     def _is_chart_in_range(self, chart, coordinates):
         try:
             chart_anchor = chart._chart_pos
@@ -491,8 +494,6 @@ class ExcelMetadataExtractor:
                     chart_from_row >= coordinates["from"]["row"])
         except:
             return False
-                except Exception as e:
-                    self.logger.error(f"Error generating metadata: {str(e)}")
 
             return regions
 
