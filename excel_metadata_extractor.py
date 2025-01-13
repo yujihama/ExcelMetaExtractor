@@ -26,6 +26,7 @@ class ExcelMetadataExtractor:
         self.workbook = load_workbook(file_obj, data_only=True)
         self.openai_helper = OpenAIHelper()
         self.MAX_CELLS_PER_ANALYSIS = 100
+        self.logger = Logger()
 
         # Store excel_zip for later use
         temp_dir = tempfile.mkdtemp()
@@ -251,6 +252,7 @@ class ExcelMetadataExtractor:
         }
 
     def extract_drawing_info(self, sheet, excel_zip, drawing_path) -> List[Dict[str, Any]]:
+        self.logger.method_start("extract_drawing_info")
         drawing_list = []
         try:
             vml_controls = self._get_vml_controls(excel_zip)

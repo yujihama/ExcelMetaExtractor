@@ -13,6 +13,7 @@ class OpenAIHelper:
         load_dotenv()
         self.client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
         self.model = "gpt-4o"
+        self.logger = Logger()
 
     def summarize_region(self, region: Dict[str, Any]) -> str:
         """Generate a summary for a region based on its content"""
@@ -57,6 +58,7 @@ class OpenAIHelper:
                                        json.dumps(region,
                                                   ensure_ascii=False)[:200])
 
+            self.logger.gpt_prompt(prompt)
             response = self.client.chat.completions.create(model="gpt-4o",
                                                            messages=[{
                                                                "role":
@@ -65,7 +67,9 @@ class OpenAIHelper:
                                                                prompt
                                                            }],
                                                            max_tokens=1000)
-            return response.choices[0].message.content
+            response_content = response.choices[0].message.content
+            self.logger.gpt_response(response_content)
+            return response_content
         except Exception as e:
             print(f"Error generating summary: {str(e)}")
             return "サマリーの生成に失敗しました"
