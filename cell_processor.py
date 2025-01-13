@@ -20,7 +20,7 @@ class CellProcessor:
 
     def extract_region_cells(self, sheet, start_row: int, start_col: int, max_row: int, max_col: int) -> List[List[Dict[str, Any]]]:
         cells_data = []
-        actual_max_row = min(max_row, start_row + 5)
+        actual_max_row = max_row
         actual_max_col = max_col
 
         for row in range(start_row, actual_max_row + 1):
