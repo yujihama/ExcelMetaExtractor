@@ -276,9 +276,7 @@ class ChartProcessor:
 
                         chart_info["series"].append(series_data)
                     
-                    # Set chart type and data
-                    chart_info["chartType"] = chart_type_elem.tag.split('}')[-1] if chart_type_elem is not None else ""
-                    chart_info["chart_data_json"] = json.dumps(chart_data)
+                    # Set chart data
                     chart_info["chart_data_json"] = json.dumps(chart_data)
                     self.logger.info(f"Complete chart info: {json.dumps(chart_info, indent=2)}")
                     self.logger.info(f"Chart data: {json.dumps(chart_data, indent=2)}")
