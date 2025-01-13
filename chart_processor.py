@@ -250,8 +250,9 @@ class ChartProcessor:
                         # Get data values
                         values = series.findall('.//c:val//c:numRef//c:numCache//c:v', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
                         if values:
-                            series_data["values"] = [float(v.text) if v.text.replace('.','',1).isdigit() else 0 for v in values]
-                            chart_data["series"].append(series_data["values"])
+                            values_list = [float(v.text) if v.text.replace('.','',1).isdigit() else 0 for v in values]
+                            series_data["values"] = values_list
+                            chart_data["series"].append(values_list)
 
                         # Get categories
                         cats = series.findall('.//c:cat//c:strRef//c:strCache//c:v', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
@@ -259,6 +260,10 @@ class ChartProcessor:
                             chart_data["categories"] = [c.text for c in cats]
 
                         chart_info["series"].append(series_data)
+                    
+                    # Set chart type and data
+                    chart_info["chartType"] = chart_type_elem.tag.split('}')[-1] if chart_type_elem is not None else ""
+                    chart_info["chart_data_json"] = json.dumps(chart_data)
                     
                     chart_info["chart_data_json"] = json.dumps(chart_data)
                     self.logger.info(f"Complete chart info: {json.dumps(chart_info, indent=2)}")
