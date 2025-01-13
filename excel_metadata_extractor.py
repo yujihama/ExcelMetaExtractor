@@ -32,6 +32,7 @@ class ExcelMetadataExtractor:
         self.logger = Logger()
         self.drawing_extractor = DrawingExtractor(self.logger)
         self.chart_processor = ChartProcessor(self.logger)
+        self.region_analyzer = RegionAnalyzer(self.logger, self.openai_helper)
 
         # Store excel_zip for later use
         temp_dir = tempfile.mkdtemp()
