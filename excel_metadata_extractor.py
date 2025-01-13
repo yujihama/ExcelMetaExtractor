@@ -86,7 +86,7 @@ class ExcelMetadataExtractor:
                                         sheet_drawing_map[sheet_name] = drawing_path
 
         except Exception as e:
-            print(f"Error in get_sheet_drawing_relations: {str(e)}")
+            self.logger.error(f"Error in get_sheet_drawing_relations: {str(e)}")
 
         return sheet_drawing_map
 
@@ -273,27 +273,23 @@ class ExcelMetadataExtractor:
                     self._process_drawings(anchor, excel_zip, drawing_list)
 
         except Exception as e:
-            print(f"Error in extract_drawing_info: {str(e)}")
+            self.logger.error(f"Error in extract_drawing_info: {str(e)}")
 
         return drawing_list
 
     def _get_vml_controls(self, excel_zip):
         vml_controls = []
         vml_files = [f for f in excel_zip.namelist() if f.startswith('xl/drawings/') and f.endswith('.vml')]
-        print(f"\nFound VML files: {vml_files}")
 
         for vml_file in vml_files:
             try:
-                print(f"\nProcessing VML file: {vml_file}")
                 with excel_zip.open(vml_file) as f:
                     vml_content = f.read().decode('utf-8')
                     controls = self._parse_vml_for_controls(vml_content)
                     vml_controls.extend(controls) #extend the list instead of overwriting.
-                    for control in controls:
-                        print(f"Added control with ID {control['id']}: {json.dumps(control, indent=2)}")
             except Exception as e:
-                print(f"Error processing VML file {vml_file}: {str(e)}")
-                print(traceback.format_exc())
+                self.logger.error(f"Error processing VML file {vml_file}: {str(e)}")
+                self.logger.exception(e)
 
         return vml_controls
 
@@ -339,7 +335,7 @@ class ExcelMetadataExtractor:
                 connector_info["range"] = range_str
                 drawing_list.append(connector_info)
 
-    
+
 
     def _extract_shape_info(self, sp, anchor, vml_controls):
         """図形情報を抽出し、VMLコントロールとマッチングする"""
@@ -365,20 +361,15 @@ class ExcelMetadataExtractor:
                     # 座標情報をセル範囲として保存
                     range_str = self._get_range_from_coordinates(shape_info["coordinates"])
                     shape_info["range"] = range_str
-                    print(f"\nProcessing shape with ID: {shape_id}")
-                    print(f"Available VML controls: {len(vml_controls)}")
 
                     # IDに基づいてVMLコントロールを検索
                     matching_control = None
                     for control in vml_controls:
-                        print(f"Comparing shape ID {shape_id} with VML control ID {control.get('numeric_id')}")
                         if control.get('numeric_id') == shape_id:
                             matching_control = control
                             break
 
                     if matching_control:
-                        print(f"Found matching VML control for shape ID {shape_id}:")
-                        print(json.dumps(matching_control, indent=2, ensure_ascii=False))
                         shape_info.update({
                             "text_content": matching_control.get("text", ""),
                             "form_control_type": matching_control.get("type"),
@@ -387,17 +378,15 @@ class ExcelMetadataExtractor:
                         if matching_control.get("is_first_button") is not None:
                             shape_info["is_first_button"] = matching_control["is_first_button"]
                     else:
-                        print(f"No matching VML control found for shape ID: {shape_id}")
                         # テキスト内容を直接取得
                         txBody = sp.find('.//xdr:txBody//a:t', self.ns)
                         if txBody is not None and txBody.text:
                             shape_info["text_content"] = txBody.text
-                            print(f"Found direct text content: {txBody.text}")
 
             return shape_info
         except Exception as e:
-            print(f"Error in _extract_shape_info: {str(e)}")
-            print(traceback.format_exc())
+            self.logger.error(f"Error in _extract_shape_info: {str(e)}")
+            self.logger.exception(e)
             return None
 
     def _get_coordinates(self, anchor):
@@ -481,7 +470,7 @@ class ExcelMetadataExtractor:
 
             return chart_info
         except Exception as e:
-            print(f"Error in _extract_chart_info: {str(e)}")
+            self.logger.error(f"Error in _extract_chart_info: {str(e)}")
             return None
 
     def _extract_chart_metadata(self, chart_root):
@@ -560,16 +549,15 @@ class ExcelMetadataExtractor:
                                                     analysis_result = self.openai_helper.analyze_image_with_gpt4o(image_base64)
                                                     if analysis_result:
                                                         image_info["gpt4o_analysis"] = analysis_result
-                                                        print(f"\nImage analysis result: {json.dumps(analysis_result, indent=2)}")
 
                         except Exception as e:
-                            print(f"Error analyzing image: {str(e)}")
-                            print(traceback.format_exc())
+                            self.logger.error(f"Error analyzing image: {str(e)}")
+                            self.logger.exception(e)
 
                         return image_info
             return None
         except Exception as e:
-            print(f"Error in _extract_picture_info: {str(e)}")
+            self.logger.error(f"Error in _extract_picture_info: {str(e)}")
             return None
 
     def _extract_group_info(self, grp):
@@ -583,7 +571,7 @@ class ExcelMetadataExtractor:
                 }
             return None
         except Exception as e:
-            print(f"Error in _extract_group_info: {str(e)}")
+            self.logger.error(f"Error in _extract_group_info: {str(e)}")
             return None
 
     def _extract_connector_info(self, cxn):
@@ -597,7 +585,7 @@ class ExcelMetadataExtractor:
                 }
             return None
         except Exception as e:
-            print(f"Error in _extract_connector_info: {str(e)}")
+            self.logger.error(f"Error in _extract_connector_info: {str(e)}")
             return None
 
     def _parse_vml_for_controls(self, vml_content):
@@ -613,7 +601,6 @@ class ExcelMetadataExtractor:
             root = ET.fromstring(vml_content)
             control_elements = root.findall('.//{urn:schemas-microsoft-com:vml}shape')
 
-            print(f"\nProcessing {len(control_elements)} VML control elements")
 
             for element in control_elements:
                 try:
@@ -624,22 +611,19 @@ class ExcelMetadataExtractor:
                         div = textbox.find('.//div')
                         if div is not None:
                             text_content = "".join(div.itertext()).strip()
-                            print(f"Found text content: {text_content}")
 
                     control_type = element.find('.//{urn:schemas-microsoft-com:office:excel}ClientData')
                     if control_type is not None:
                         control_type_value = control_type.get('ObjectType')
-                        print(f"\nFound control of type: {control_type_value}")
 
                         shape_id = element.get('id', '')
                         try:
                             # VML IDから数値部分を抽出（例：_x0000_s1027から1027を取得）
                             numeric_id = shape_id.split('_s')[-1]
                             numeric_id = int(numeric_id) if numeric_id.isdigit() else None
-                            print(f"Extracted numeric ID: {numeric_id} from shape ID: {shape_id}")
 
                         except (ValueError, IndexError) as e:
-                            print(f"Error extracting numeric ID from shape_id {shape_id}: {str(e)}")
+                            self.logger.error(f"Error extracting numeric ID from shape_id {shape_id}: {str(e)}")
                             continue
 
                         control = {
@@ -666,9 +650,8 @@ class ExcelMetadataExtractor:
                                 to_col = coords[2]
                                 to_row = coords[3]
                                 control['position'] = f"{get_column_letter(from_col + 1)}{from_row + 1}:{get_column_letter(to_col + 1)}{to_row + 1}"
-                                print(f"Control position: {control['position']}")
                             except (ValueError, IndexError) as e:
-                                print(f"Error processing anchor coordinates: {str(e)}")
+                                self.logger.error(f"Error processing anchor coordinates: {str(e)}")
 
                         # ラジオボタンの追加情報
                         if control_type_value == 'Radio':
@@ -676,18 +659,16 @@ class ExcelMetadataExtractor:
                             if first_button is not None:
                                 control['is_first_button'] = first_button.text == '1'
 
-                        print(f"Adding VML control: {json.dumps(control, indent=2, ensure_ascii=False)}")
                         controls.append(control)
 
                 except Exception as control_error:
-                    print(f"Error processing individual control: {str(control_error)}")
+                    self.logger.error(f"Error processing individual control: {str(control_error)}")
                     continue
 
         except Exception as e:
-            print(f"Error parsing VML content: {str(e)}")
-            print(traceback.format_exc())
+            self.logger.error(f"Error parsing VML content: {str(e)}")
+            self.logger.exception(e)
 
-        print(f"\nTotal VML controls extracted: {len(controls)}")
         return controls
 
     def detect_regions(self, sheet) -> List[Dict[str, Any]]:
@@ -697,7 +678,6 @@ class ExcelMetadataExtractor:
         processed_cells = set()
 
         try:
-            print("\n=== Starting region detection ===")
             with tempfile.TemporaryDirectory() as temp_dir:
                 temp_zip = os.path.join(temp_dir, 'temp.xlsx')
                 with open(temp_zip, 'wb') as f:
@@ -713,8 +693,6 @@ class ExcelMetadataExtractor:
 
                         for drawing in drawings:
                             drawing_type = drawing["type"]
-                            print(f"\n=== Processing {drawing_type} region: {drawing.get('range', 'No range')} ===")
-                            print(f"Region data: {json.dumps(drawing, indent=2)}")
 
                             region_info = {
                                 "regionType": drawing_type,
@@ -734,9 +712,8 @@ class ExcelMetadataExtractor:
                                     region_info["image_ref"] = drawing["image_ref"]
                                 if "gpt4o_analysis" in drawing:
                                     region_info["gpt4o_analysis"] = drawing["gpt4o_analysis"]
-                                    print(f"\nGPT-4 Vision analysis result: {json.dumps(drawing['gpt4o_analysis'], indent=2)}")
                                 else:
-                                    print("No GPT-4 Vision analysis found for image")
+                                    self.logger.info("No GPT-4 Vision analysis found for image")
 
                             elif drawing_type == "smartart" and "diagram_type" in drawing:
                                 region_info["diagram_type"] = drawing["diagram_type"]
@@ -748,7 +725,6 @@ class ExcelMetadataExtractor:
                                     region_info["is_first_button"] = drawing["is_first_button"]
 
                             drawing_regions.append(region_info)
-                            print(f"Added region with form control info: {json.dumps(region_info, indent=2)}")
 
                             if "coordinates" in drawing:
                                 from_col = drawing["coordinates"]["from"]["col"]
@@ -761,7 +737,7 @@ class ExcelMetadataExtractor:
                                         processed_cells.add(f"{get_column_letter(c+1)}{r+1}")
 
             # セル領域の処理
-            print("\n=== Processing cell regions ===")
+
             for row in range(1, min(sheet.max_row + 1, 100)):
                 for col in range(1, min(sheet.max_column + 1, 20)):
                     try:
@@ -835,29 +811,28 @@ class ExcelMetadataExtractor:
                                         "start_row": row
                                     }
                                 except Exception as e:
-                                    print(f"Error analyzing table header: {str(e)}")
+                                    self.logger.error(f"Error analyzing table header: {str(e)}")
                                     continue
 
                             cell_regions.append(region_metadata)
-                            print(f"Added cell region: {json.dumps(region_metadata, indent=2)}")
 
                         except Exception as e:
-                            print(f"Error analyzing region at {cell_coord}: {str(e)}")
+                            self.logger.error(f"Error analyzing region at {cell_coord}: {str(e)}")
                             continue
 
                     except Exception as e:
-                        print(f"Error processing cell at row {row}, col {col}: {str(e)}")
+                        self.logger.error(f"Error processing cell at row {row}, col {col}: {str(e)}")
                         continue
 
             # サマリーの生成
-            print("\n=== Generating summaries ===")
+
             for region in drawing_regions + cell_regions:
                 try:
                     if "regionType" not in region:
                         region["regionType"] = region.get("type", "unknown")
                     region["summary"] = self.openai_helper.summarize_region(region)
                 except Exception as e:
-                    print(f"Error generating summary for region: {str(e)}")
+                    self.logger.error(f"Error generating summary for region: {str(e)}")
                     continue
 
             regions.extend(drawing_regions)
@@ -883,13 +858,13 @@ class ExcelMetadataExtractor:
                     metadata["summary"] = self.openai_helper.generate_sheet_summary(sheet_data)
                     regions.append(metadata)
                 except Exception as e:
-                    print(f"Error generating metadata: {str(e)}")
+                    self.logger.error(f"Error generating metadata: {str(e)}")
 
             return regions
 
         except Exception as e:
-            print(f"Error in detect_regions: {str(e)}")
-            print(traceback.format_exc())
+            self.logger.error(f"Error in detect_regions: {str(e)}")
+            self.logger.exception(e)
             return []
 
     def get_file_metadata(self) -> Dict[str, Any]:
@@ -908,7 +883,8 @@ class ExcelMetadataExtractor:
                 }
             }
         except Exception as e:
-            print(f"Error in get_file_metadata: {str(e)}\n{traceback.format_exc()}")
+            self.logger.error(f"Error in get_file_metadata: {str(e)}")
+            self.logger.exception(e)
             raise
 
     def analyze_cell_type(self, cell) -> str:
@@ -1018,11 +994,11 @@ class ExcelMetadataExtractor:
             cells_data.append(row_data)
 
         if max_row > actual_max_row or max_col > actual_max_col:
-            print(f"Note: Region was truncated from {max_row}x{max_col} to {actual_max_row}x{actual_max_col}")
+            self.logger.info(f"Note: Region was truncated from {max_row}x{max_col} to {actual_max_row}x{actual_max_col}")
 
         return cells_data
 
-    
+
 
     def get_sheet_metadata(self) -> list:
         try:
@@ -1049,7 +1025,8 @@ class ExcelMetadataExtractor:
 
             return sheets_metadata
         except Exception as e:
-            print(f"Error in get_sheet_metadata: {str(e)}\n{traceback.format_exc()}")
+            self.logger.error(f"Error in get_sheet_metadata: {str(e)}")
+            self.logger.exception(e)
             raise
 
     def extract_all_metadata(self) -> Dict[str, Any]:
@@ -1071,5 +1048,6 @@ class ExcelMetadataExtractor:
 
             return metadata
         except Exception as e:
-            print(f"Error in extract_all_metadata: {str(e)}\n{traceback.format_exc()}")
+            self.logger.error(f"Error in extract_all_metadata: {str(e)}")
+            self.logger.exception(e)
             raise
