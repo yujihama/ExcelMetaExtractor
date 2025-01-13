@@ -10,7 +10,7 @@ from drawing_extractor import DrawingExtractor
 from region_analyzer import RegionAnalyzer
 import openpyxl.cell.cell
 from openpyxl.utils import get_column_letter
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional, Tuple, Set
 from openai_helper import OpenAIHelper
 from chart_processor import ChartProcessor
 from cell_processor import CellProcessor
