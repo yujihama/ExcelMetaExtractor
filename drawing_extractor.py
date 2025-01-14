@@ -526,19 +526,33 @@ class DrawingExtractor:
 
     def _extract_diagram_data(self, excel_zip, rel_id, drawing_path):
         try:
-            drawing_number = os.path.basename(drawing_path).replace('drawing', '').replace('.xml', '')
-            rels_path = f'xl/drawings/_rels/drawing{drawing_number}.xml.rels'
-            diagram_path = None
+            # まずdiagrams直下のxmlファイルを確認
+            diagram_files = [
+                f for f in excel_zip.namelist()
+                if f.startswith("xl/diagrams/") and f.endswith(".xml")
+            ]
             
-            if rels_path in excel_zip.namelist():
-                with excel_zip.open(rels_path) as rels_file:
-                    rels_tree = ET.parse(rels_file)
-                    rels_root = rels_tree.getroot()
-                    
-                    for rel in rels_root.findall('.//{http://schemas.openxmlformats.org/package/2006/relationships}Relationship'):
-                        if rel.get('Id') == rel_id:
-                            diagram_path = 'xl/' + rel.get('Target').replace('..', '')
-                            break
+            diagram_path = None
+            # データモデルファイルを探す
+            for diag_file in diagram_files:
+                if "data" in diag_file.lower() or "dm" in diag_file.lower():
+                    diagram_path = diag_file
+                    break
+            
+            # 見つからない場合は従来の方法でも探す
+            if not diagram_path:
+                drawing_number = os.path.basename(drawing_path).replace('drawing', '').replace('.xml', '')
+                rels_path = f'xl/drawings/_rels/drawing{drawing_number}.xml.rels'
+                
+                if rels_path in excel_zip.namelist():
+                    with excel_zip.open(rels_path) as rels_file:
+                        rels_tree = ET.parse(rels_file)
+                        rels_root = rels_tree.getroot()
+                        
+                        for rel in rels_root.findall('.//{http://schemas.openxmlformats.org/package/2006/relationships}Relationship'):
+                            if rel.get('Id') == rel_id:
+                                diagram_path = 'xl/' + rel.get('Target').replace('..', '')
+                                break
 
             if not diagram_path or diagram_path not in excel_zip.namelist():
                 self.logger.debug("SmartArt(ダイアグラム)に相当するファイルが見つかりませんでした。")
