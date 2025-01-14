@@ -325,7 +325,7 @@ class DrawingExtractor:
                         self.ns)
                     if smartart_elem is not None:
                         smartart_info = self._extract_smartart_info(
-                            smartart_elem, excel_zip)
+                            smartart_elem, excel_zip, drawing_path)
                         if smartart_info:
                             smartart_info[
                                 "coordinates"] = self._get_coordinates(anchor)
@@ -431,7 +431,7 @@ class DrawingExtractor:
             self.logger.error(f"Error in extract_picture_info: {str(e)}")
             return None
 
-    def _extract_smartart_info(self, smartart_elem, excel_zip):
+    def _extract_smartart_info(self, smartart_elem, excel_zip, drawing_path):
         try:
             self.logger.debug("Extracting SmartArt info")
 
