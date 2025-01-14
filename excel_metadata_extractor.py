@@ -271,9 +271,6 @@ class ExcelMetadataExtractor:
                         self.logger.info(
                             f"max_row:{max_row}, max_col:{get_column_letter(max_col)}"
                         )
-                        if max_row == row and max_col == col:  # 単一セルの場合はスキップ
-                            continue
-
                         cells_data = self.cell_processor.extract_region_cells(
                             sheet, row, col, max_row, max_col)
                         if not cells_data:  # 空のデータの場合はスキップ
