@@ -25,13 +25,27 @@ class VMLProcessor:
 
     def parse_vml_for_controls(self, vml_content):
         """
-        VMLコンテンツからコントロール情報を抽出
+        VMLコンテンツからフォームコントロール情報を抽出
+        
+        以下のコントロールタイプを処理します：
+        - チェックボックス (checked状態を含む)
+        - ラジオボタン (グループ内での位置情報を含む)
+        - テキストボックス (内容とスタイル情報)
         
         Args:
-            vml_content: 解析対象のVMLコンテンツ
+            vml_content (str): 解析対象のVMLコンテンツ文字列
             
         Returns:
-            List[Dict]: 抽出されたコントロール情報のリスト
+            List[Dict]: 以下のキーを含むコントロール情報のリスト
+                - id: コントロールの一意識別子
+                - type: コントロールの種類
+                - checked: チェック状態（チェックボックス/ラジオボタンの場合）
+                - position: セル上での位置
+                - text: 関連テキスト
+        
+        Raises:
+            ET.ParseError: XML解析エラー
+            ValueError: 不正なコントロール情報
         """
         controls = []
         try:
