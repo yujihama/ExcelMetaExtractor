@@ -122,9 +122,10 @@ class DrawingExtractor:
                             shape_info["is_first_button"] = matching_control[
                                 "is_first_button"]
                     else:
-                        txBody = sp.find('.//xdr:txBody//a:t', self.ns)
-                        if txBody is not None and txBody.text:
-                            shape_info["text_content"] = txBody.text
+                        txBody_elements = sp.findall('.//xdr:txBody//a:t', self.ns)
+                        if txBody_elements:
+                            texts = [elem.text for elem in txBody_elements if elem.text]
+                            shape_info["text_content"] = "\n".join(texts)
 
             return shape_info
         except Exception as e:
