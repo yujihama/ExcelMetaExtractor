@@ -185,8 +185,15 @@ class DrawingExtractor:
                 
                 # XML構造の全体をログ出力
                 self.logger.debug("Full XML structure:")
-                for elem in root.iter():
-                    self.logger.debug(f"Found element: {elem.tag} - {elem.attrib}")
+                def print_elem(elem, level=0):
+                    self.logger.debug(f"{'  ' * level}Element: {elem.tag}")
+                    self.logger.debug(f"{'  ' * level}Attributes: {elem.attrib}")
+                    if elem.text and elem.text.strip():
+                        self.logger.debug(f"{'  ' * level}Text: {elem.text.strip()}")
+                    for child in elem:
+                        print_elem(child, level + 1)
+                
+                print_elem(root)
                 
                 # 複数のパターンで検索
                 smartart_patterns = [
