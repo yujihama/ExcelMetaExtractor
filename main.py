@@ -1,4 +1,3 @@
-
 """
 Excel Metadata Extractor - メインアプリケーション
 このモジュールはStreamlitベースのWebインターフェースを提供し、
@@ -18,6 +17,7 @@ import pandas as pd
 import traceback
 from openpyxl.utils import get_column_letter
 import os
+
 
 def display_json_tree(data, key_prefix=""):
     """
@@ -44,6 +44,7 @@ def display_json_tree(data, key_prefix=""):
             else:
                 st.text(f"- {item}")
 
+
 def display_region_info(region):
     """
     検出された領域の情報を構造化して表示する
@@ -62,7 +63,8 @@ def display_region_info(region):
             cols = st.columns(2)
             with cols[0]:
                 if 'shape_type' in region and region['shape_type']:
-                    st.metric("Shape Type", region.get('shape_type', 'Unknown').title())
+                    st.metric("Shape Type",
+                              region.get('shape_type', 'Unknown').title())
                 if region.get('name'):
                     st.text(f"Name: {region['name']}")
             with cols[1]:
@@ -75,27 +77,30 @@ def display_region_info(region):
 
             if 'form_control_type' in region:
                 st.markdown("#### Form Control")
-                control_type = "チェックボックス" if region['form_control_type'] == 'checkbox' else "ラジオボタン"
+                control_type = "チェックボックス" if region[
+                    'form_control_type'] == 'checkbox' else "ラジオボタン"
                 st.write(f"種類: {control_type}")
-                st.write(f"状態: {'選択済み' if region.get('form_control_state', False) else '未選択'}")
+                st.write(
+                    f"状態: {'選択済み' if region.get('form_control_state', False) else '未選択'}"
+                )
 
         # 画像、SmartArt、グラフの情報を表示
         elif region['regionType'] in ['image', 'smartart', 'chart']:
-            st.markdown("#### Drawing Information")
-            cols = st.columns(2)
-            with cols[0]:
-                st.text(f"Type: {region['type'].title()}")
-                if region.get('name'):
-                    st.text(f"Name: {region['name']}")
-            with cols[1]:
-                if region.get('description'):
-                    st.text(f"Description: {region['description']}")
+            # st.markdown("#### Drawing Information")
+            # cols = st.columns(2)
+            # with cols[0]:
+            #     st.text(f"Type: {region['type'].title()}")
+            #     if region.get('name'):
+            #         st.text(f"Name: {region['name']}")
+            # with cols[1]:
+            #     if region.get('description'):
+            #         st.text(f"Description: {region['description']}")
 
-            if 'coordinates' in region:
-                st.markdown("#### Position")
-                coords = region['coordinates']
-                st.text(f"From: Column {coords['from']['col']}, Row {coords['from']['row']}")
-                st.text(f"To: Column {coords['to']['col']}, Row {coords['to']['row']}")
+            # if 'coordinates' in region:
+            #     st.markdown("#### Position")
+            #     coords = region['coordinates']
+            #     st.text(f"From: Column {coords['from']['col']}, Row {coords['from']['row']}")
+            #     st.text(f"To: Column {coords['to']['col']}, Row {coords['to']['row']}")
 
             # 画像分析結果の表示
             if region['type'] == 'image':
@@ -105,10 +110,11 @@ def display_region_info(region):
                     analysis = region['gpt4o_analysis']
                     st.write("画像の種類：", analysis.get('imageType', '不明'))
                     st.write("内容：", analysis.get('content', '不明'))
-                    st.write("特徴：", ", ".join(analysis.get('features', [])) or '不明')
+                    st.write("特徴：", ", ".join(analysis.get('features', []))
+                             or '不明')
                 else:
                     print("No analysis found in region")
-                
+
                 if 'image_ref' in region:
                     print(f"Found image reference: {region['image_ref']}")
                     st.text(f"Reference: {region['image_ref']}")
@@ -151,31 +157,40 @@ def display_region_info(region):
                 st.markdown("#### Header Structure")
                 cols = st.columns(3)
                 with cols[0]:
-                    header_type = region['headerStructure'].get('headerType', 'Unknown')
+                    header_type = region['headerStructure'].get(
+                        'headerType', 'Unknown')
                     st.metric("Header Type", header_type.title())
                 with cols[1]:
-                    header_range = region['headerStructure'].get('headerRange', 'N/A')
+                    header_range = region['headerStructure'].get(
+                        'headerRange', 'N/A')
                     st.metric("Header Range", header_range)
                 with cols[2]:
-                    has_merged = region['headerStructure'].get('mergedCells', False)
-                    st.metric("Has Merged Cells", "Yes" if has_merged else "No")
+                    has_merged = region['headerStructure'].get(
+                        'mergedCells', False)
+                    st.metric("Has Merged Cells",
+                              "Yes" if has_merged else "No")
 
                 # ヘッダー列の表示
-                if 'sampleCells' in region and 'headerStructure' in region and region['headerStructure'].get('headerRows'):
+                if 'sampleCells' in region and 'headerStructure' in region and region[
+                        'headerStructure'].get('headerRows'):
                     st.markdown("#### Header Columns")
-                    header_rows_indices = region['headerStructure']['headerRows']
+                    header_rows_indices = region['headerStructure'][
+                        'headerRows']
                     start_row = region['headerStructure']['start_row']
 
                     # ヘッダー情報を列ごとに整理
                     header_columns = {}
                     for header_row_index in header_rows_indices:
-                        header_row = region['sampleCells'][int(header_row_index) - int(start_row)]
+                        header_row = region['sampleCells'][
+                            int(header_row_index) - int(start_row)]
                         for cell in header_row:
                             col_letter = get_column_letter(cell['col'])
                             if col_letter not in header_columns:
                                 header_columns[col_letter] = []
-                            if cell['value'] and cell['value'] not in header_columns[col_letter]:
-                                header_columns[col_letter].append(cell['value'])
+                            if cell['value'] and cell[
+                                    'value'] not in header_columns[col_letter]:
+                                header_columns[col_letter].append(
+                                    cell['value'])
 
                     # ヘッダー情報を表示
                     for col_letter, values in sorted(header_columns.items()):
@@ -202,6 +217,7 @@ def display_region_info(region):
         st.error(f"Region data: {json.dumps(region, indent=2)}")
         st.error(f"Stack trace:\n{traceback.format_exc()}")
 
+
 def main():
     """
     メイン関数: Streamlitアプリケーションのエントリーポイント
@@ -220,7 +236,8 @@ def main():
     """)
 
     # ファイルアップローダーの表示
-    uploaded_file = st.file_uploader("Choose an Excel file", type=['xlsx', 'xlsm'])
+    uploaded_file = st.file_uploader("Choose an Excel file",
+                                     type=['xlsx', 'xlsm'])
 
     if uploaded_file is not None:
         with st.spinner("Extracting metadata..."):
@@ -228,18 +245,18 @@ def main():
                 # メタデータの抽出
                 extractor = ExcelMetadataExtractor(uploaded_file)
                 metadata = extractor.extract_all_metadata()
-    
+
                 # セクションの表示
                 st.header("📑 Extracted Metadata")
-    
+
                 # ファイルプロパティセクション
                 with st.expander("📌 File Properties", expanded=True):
                     st.json(metadata["fileProperties"])
-    
+
                 # ワークシートセクション
                 for sheet_idx, sheet in enumerate(metadata["worksheets"]):
                     st.subheader(f"📚 Sheet: {sheet['sheetName']}")
-    
+
                     # シートメトリクス
                     cols = st.columns(3)
                     with cols[0]:
@@ -247,13 +264,14 @@ def main():
                     with cols[1]:
                         st.metric("Columns", sheet["columnCount"])
                     with cols[2]:
-                        st.metric("Merged Cells", len(sheet.get("mergedCells", [])))
-    
+                        st.metric("Merged Cells",
+                                  len(sheet.get("mergedCells", [])))
+
                     # 結合セルの表示
                     if sheet.get("mergedCells"):
                         st.markdown("##### 🔀 Merged Cells")
                         st.code("\n".join(sheet["mergedCells"]))
-    
+
                     # 検出された領域の表示
                     if "regions" in sheet and sheet["regions"]:
                         st.markdown("##### 📍 Detected Regions")
@@ -264,9 +282,14 @@ def main():
                                     st.markdown("##### 📊 Sheet Summary")
                                     with st.expander("Summary Information"):
                                         st.markdown("#### Region Statistics")
-                                        st.metric("Total Regions", region.get('totalRegions', 0))
-                                        st.metric("Drawing Regions", region.get('drawingRegions', 0))
-                                        st.metric("Cell Regions", region.get('cellRegions', 0))
+                                        st.metric(
+                                            "Total Regions",
+                                            region.get('totalRegions', 0))
+                                        st.metric(
+                                            "Drawing Regions",
+                                            region.get('drawingRegions', 0))
+                                        st.metric("Cell Regions",
+                                                  region.get('cellRegions', 0))
                                         if "summary" in region:
                                             st.markdown("#### Summary")
                                             st.info(region["summary"])
@@ -280,20 +303,24 @@ def main():
                                         if "summary" in region:
                                             st.markdown("#### Region Summary")
                                             st.write(region["summary"])
-    
+
                             except Exception as e:
-                                st.error(f"Error processing region: {str(e)}\nRegion data: {json.dumps(region, indent=2)}")
-                                st.error(f"Stack trace:\n{traceback.format_exc()}")
-    
+                                st.error(
+                                    f"Error processing region: {str(e)}\nRegion data: {json.dumps(region, indent=2)}"
+                                )
+                                st.error(
+                                    f"Stack trace:\n{traceback.format_exc()}")
+
                     st.markdown("---")  # シート間の区切り線
-    
+
                 # 生のJSONデータ表示
                 with st.expander("🔍 Raw JSON Data"):
                     st.json(metadata)
-    
+
                 # メタデータJSONファイルの自動生成
                 json_str = json.dumps(metadata, indent=2, ensure_ascii=False)
-                output_path = os.path.join("output", f"{uploaded_file.name}_metadata.json")
+                output_path = os.path.join(
+                    "output", f"{uploaded_file.name}_metadata.json")
                 with open(output_path, "w", encoding="utf-8") as file:
                     file.write(json_str)
                 st.success(f"メタデータJSONファイルが保存されました: {output_path}")
@@ -301,7 +328,9 @@ def main():
             except Exception as e:
                 st.error(f"Error processing file: {str(e)}")
                 st.error(f"Detailed error:\n{traceback.format_exc()}")
-                st.error("Please make sure you've uploaded a valid Excel file.")
+                st.error(
+                    "Please make sure you've uploaded a valid Excel file.")
+
 
 if __name__ == "__main__":
     main()
