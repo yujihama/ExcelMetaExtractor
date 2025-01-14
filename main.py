@@ -128,6 +128,22 @@ def display_region_info(region):
                         if 'data_range' in series:
                             st.text(f"Data Range: {series['data_range']}")
 
+            # SmartArt詳細の表示
+            elif region['type'] == 'smartart':
+                st.markdown("#### SmartArt Details")
+                if 'diagram_type' in region:
+                    st.text(f"Diagram Type: {region['diagram_type']}")
+                if 'layout_type' in region:
+                    st.text(f"Layout Type: {region['layout_type']}")
+                if 'text_content' in region and region['text_content']:
+                    st.markdown("#### Text Content")
+                    st.text(region['text_content'])
+                if 'nodes' in region and region['nodes']:
+                    st.markdown("#### Nodes")
+                    for node in region['nodes']:
+                        if 'text_list' in node and node['text_list']:
+                            st.text(" ".join(node['text_list']))
+
         # テーブル情報の表示
         elif region['regionType'] == 'table':
             st.markdown("### Table Information")
