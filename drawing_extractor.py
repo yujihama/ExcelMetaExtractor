@@ -184,6 +184,33 @@ class DrawingExtractor:
         vml_processor = VMLProcessor(self.logger)
         return vml_processor.parse_vml_for_controls(vml_content)
 
+    def _process_shapes(self, anchor, vml_controls, drawing_list):
+        for sp in anchor.findall('.//xdr:sp', self.ns):
+            shape_info = self._extract_shape_info(sp, anchor, vml_controls)
+            if shape_info:
+                drawing_list.append(shape_info)
+
+    def _process_drawings(self, anchor, excel_zip, drawing_list, openai_helper):
+        coordinates = self._get_coordinates(anchor)
+        range_str = self._get_range_from_coordinates(coordinates)
+
+        # Process images
+        for pic in anchor.findall('.//xdr:pic', self.ns):
+            image_info = self.extract_picture_info(pic, excel_zip, self.ns, "")
+            if image_info:
+                image_info["coordinates"] = coordinates
+                image_info["range"] = range_str
+                drawing_list.append(image_info)
+
+        # Process charts
+        chart = anchor.find('.//c:chart', self.ns)
+        if chart is not None:
+            chart_info = self._extract_chart_info(chart, excel_zip)
+            if chart_info:
+                chart_info["coordinates"] = coordinates
+                chart_info["range"] = range_str
+                drawing_list.append(chart_info)
+
     def extract_drawing_info(self, sheet, excel_zip, drawing_path, openai_helper) -> List[Dict[str, Any]]:
         self.logger.method_start("extract_drawing_info")
         drawing_list = []

@@ -107,19 +107,8 @@ class ExcelMetadataExtractor:
         vml_processor = VMLProcessor(self.logger)
         return vml_processor.parse_vml_for_controls(vml_content)
 
-    def _process_shapes(self, anchor, vml_controls, drawing_list):
-        for sp in anchor.findall('.//xdr:sp', self.ns):
-            shape_info = self.drawing_extractor._extract_shape_info(sp, anchor, vml_controls) 
-            if shape_info:
-                drawing_list.append(shape_info)
-
-    def _process_drawings(self, anchor, excel_zip, drawing_list, drawing_path):
-        coordinates = self.drawing_extractor._get_coordinates(anchor) 
-        range_str = self.drawing_extractor._get_range_from_coordinates(coordinates) 
-
-        # Process images
-        for pic in anchor.findall('.//xdr:pic', self.ns):
-            image_info = self.drawing_extractor.extract_picture_info(pic, excel_zip, self.ns, drawing_path)
+    def extract_drawing_info(self, sheet, excel_zip, drawing_path) -> List[Dict[str, Any]]:
+        return self.drawing_extractor.extract_drawing_info(sheet, excel_zip, drawing_path, self.openai_helper)p, self.ns, drawing_path)
             if image_info:
                 image_info["coordinates"] = coordinates
                 image_info["range"] = range_str
