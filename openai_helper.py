@@ -31,8 +31,8 @@ class OpenAIHelper:
                 series_info = region.get('series', [])
                 data_range = series_info[0].get(
                     'data_range') if series_info else 'N/A'
-                self.logger.info(
-                    f"Chart region data: {json.dumps(region, indent=2)}")
+                # self.logger.info(
+                #     f"Chart region data: {json.dumps(region, indent=2)}")
                 prompt = ("以下のグラフが何について記載されているか簡潔に説明してください:\n"
                           "グラフタイプ: %s\n"
                           "データ範囲: %s\n"

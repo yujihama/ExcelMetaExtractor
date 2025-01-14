@@ -21,6 +21,7 @@ from openpyxl.utils.cell import coordinate_from_string, column_index_from_string
 
 
 class ChartProcessor:
+
     def __init__(self, logger: Logger):
         """
         グラフ処理クラスの初期化
@@ -38,8 +39,10 @@ class ChartProcessor:
             sheet = workbook[sheetname]
             for chart_index, chart in enumerate(sheet._charts):
                 title = self._get_chart_title(chart)
-                x_axis_title = self._get_axis_title(chart.x_axis) if chart.x_axis else None
-                y_axis_title = self._get_axis_title(chart.y_axis) if chart.y_axis else None
+                x_axis_title = self._get_axis_title(
+                    chart.x_axis) if chart.x_axis else None
+                y_axis_title = self._get_axis_title(
+                    chart.y_axis) if chart.y_axis else None
 
                 chart_data = {
                     "sheetname": sheetname,
@@ -52,7 +55,8 @@ class ChartProcessor:
                     "series_colors": []
                 }
 
-                if isinstance(chart, (BarChart, LineChart, PieChart, ScatterChart)):
+                if isinstance(chart,
+                              (BarChart, LineChart, PieChart, ScatterChart)):
                     self._extract_series_data(chart, sheet, chart_data)
 
                 chart_data_list.append(chart_data)
@@ -70,9 +74,11 @@ class ChartProcessor:
             if hasattr(chart.title.tx, 'rich') and chart.title.tx.rich:
                 if len(chart.title.tx.rich.p) > 0:
                     p = chart.title.tx.rich.p[0]
-                    if hasattr(p, 'r') and len(p.r) > 0 and hasattr(p.r[0], 't'):
+                    if hasattr(p, 'r') and len(p.r) > 0 and hasattr(
+                            p.r[0], 't'):
                         return p.r[0].t
-                    if hasattr(p, 'fld') and len(p.fld) > 0 and hasattr(p.fld[0], 't'):
+                    if hasattr(p, 'fld') and len(p.fld) > 0 and hasattr(
+                            p.fld[0], 't'):
                         return p.fld[0].t
             elif hasattr(chart.title.tx, 'strRef') and chart.title.tx.strRef:
                 return chart.title.tx.strRef.f
@@ -100,15 +106,14 @@ class ChartProcessor:
             if series.val.numRef:
                 values = self._get_cell_range(series.val.numRef.f, sheet)
                 data = []
-                for row_tuple in sheet.iter_rows(
-                    min_col=values.min_col,
-                    min_row=values.min_row,
-                    max_col=values.max_col,
-                    max_row=values.max_row
-                ):
+                for row_tuple in sheet.iter_rows(min_col=values.min_col,
+                                                 min_row=values.min_row,
+                                                 max_col=values.max_col,
+                                                 max_row=values.max_row):
                     row_data = []
                     for cell in row_tuple:
-                        value = 0 if cell.value == 'X' else float(cell.value) if cell.value is not None else 0
+                        value = 0 if cell.value == 'X' else float(
+                            cell.value) if cell.value is not None else 0
                         row_data.append(value)
                     data.extend(row_data)
                 chart_data["data"].append(data)
@@ -117,12 +122,10 @@ class ChartProcessor:
                 ref = series.cat.numRef or series.cat.strRef
                 categories = self._get_cell_range(ref.f, sheet)
                 category_labels = []
-                for row_tuple in sheet.iter_rows(
-                    min_col=categories.min_col,
-                    min_row=categories.min_row,
-                    max_col=categories.max_col,
-                    max_row=categories.max_row
-                ):
+                for row_tuple in sheet.iter_rows(min_col=categories.min_col,
+                                                 min_row=categories.min_row,
+                                                 max_col=categories.max_col,
+                                                 max_row=categories.max_row):
                     category_labels.extend([cell.value for cell in row_tuple])
                 chart_data["categories"].append(category_labels)
 
@@ -132,13 +135,11 @@ class ChartProcessor:
         min_col, min_row = coordinate_from_string(start)
         max_col, max_row = coordinate_from_string(end)
 
-        return Reference(
-            sheet,
-            min_col=column_index_from_string(min_col),
-            min_row=int(min_row),
-            max_col=column_index_from_string(max_col),
-            max_row=int(max_row)
-        )
+        return Reference(sheet,
+                         min_col=column_index_from_string(min_col),
+                         min_row=int(min_row),
+                         max_col=column_index_from_string(max_col),
+                         max_row=int(max_row))
 
     def recreate_charts(self, chart_data_list, output_dir):
         output_data = []
@@ -150,13 +151,17 @@ class ChartProcessor:
                 data = chart_data["data"]
 
                 if chart_data["type"] == "BarChart":
-                    chart_info.update(self._process_bar_chart_data(categories, data))
+                    chart_info.update(
+                        self._process_bar_chart_data(categories, data))
                 elif chart_data["type"] == "LineChart":
-                    chart_info.update(self._process_line_chart_data(categories, data))
+                    chart_info.update(
+                        self._process_line_chart_data(categories, data))
                 elif chart_data["type"] == "PieChart":
-                    chart_info.update(self._process_pie_chart_data(categories, data))
+                    chart_info.update(
+                        self._process_pie_chart_data(categories, data))
                 elif chart_data["type"] == "ScatterChart":
-                    chart_info.update(self._process_scatter_chart_data(categories, data))
+                    chart_info.update(
+                        self._process_scatter_chart_data(categories, data))
 
             output_data.append(chart_info)
 
@@ -164,34 +169,19 @@ class ChartProcessor:
 
     def _process_bar_chart_data(self, categories, data):
         if len(data) > 1:
-            return {
-                "x": categories,
-                "y": data
-            }
-        return {
-            "x": categories,
-            "y": data[0]
-        }
+            return {"x": categories, "y": data}
+        return {"x": categories, "y": data[0]}
 
     def _process_line_chart_data(self, categories, data):
-        return {
-            "x": categories,
-            "y": data
-        }
+        return {"x": categories, "y": data}
 
     def _process_pie_chart_data(self, categories, data):
         if len(data[0]) == len(categories):
-            return {
-                "labels": categories,
-                "data": data[0]
-            }
+            return {"labels": categories, "data": data[0]}
         return {}
 
     def _process_scatter_chart_data(self, categories, data):
-        return {
-            "x": categories,
-            "y": data
-        }
+        return {"x": categories, "y": data}
 
     def _extract_chart_info(self, chart_elem, excel_zip):
         self.logger.debug("_extract_chart_info started")
@@ -206,7 +196,9 @@ class ChartProcessor:
             }
 
             # Get chart relationship ID
-            chart_id = chart_elem.get('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id')
+            chart_id = chart_elem.get(
+                '{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id'
+            )
             self.logger.debug(f"chart_id: {chart_id}")
 
             # Find and parse the chart XML file
@@ -217,10 +209,14 @@ class ChartProcessor:
                 with excel_zip.open(rels_path) as rels_file:
                     rels_tree = ET.parse(rels_file)
                     rels_root = rels_tree.getroot()
-                    for rel in rels_root.findall('.//{http://schemas.openxmlformats.org/package/2006/relationships}Relationship'):
+                    for rel in rels_root.findall(
+                            './/{http://schemas.openxmlformats.org/package/2006/relationships}Relationship'
+                    ):
                         if rel.get('Id') == chart_id:
-                            chart_path = 'xl' + rel.get('Target').replace('..', '')
-                            self.logger.debug(f"Found chart_path: {chart_path}")
+                            chart_path = 'xl' + rel.get('Target').replace(
+                                '..', '')
+                            self.logger.debug(
+                                f"Found chart_path: {chart_path}")
                             break
 
             if chart_path and chart_path in excel_zip.namelist():
@@ -229,13 +225,24 @@ class ChartProcessor:
                     chart_root = chart_tree.getroot()
 
                     # Extract title
-                    title_elem = chart_root.find('.//c:title//c:tx//c:rich//a:t', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart', 'a': 'http://schemas.openxmlformats.org/drawingml/2006/main'})
+                    title_elem = chart_root.find(
+                        './/c:title//c:tx//c:rich//a:t', {
+                            'c':
+                            'http://schemas.openxmlformats.org/drawingml/2006/chart',
+                            'a':
+                            'http://schemas.openxmlformats.org/drawingml/2006/main'
+                        })
                     if title_elem is not None:
-                        chart_info["name"] = title_elem.text if title_elem is not None else ""
+                        chart_info[
+                            "name"] = title_elem.text if title_elem is not None else ""
                     self.logger.debug(f"Extracted title: {chart_info['name']}")
 
                     # Get chart type
-                    plot_area = chart_root.find('.//c:plotArea', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
+                    plot_area = chart_root.find(
+                        './/c:plotArea', {
+                            'c':
+                            'http://schemas.openxmlformats.org/drawingml/2006/chart'
+                        })
                     if plot_area is not None:
                         for child in plot_area:
                             if child.tag.endswith('}barChart'):
@@ -249,49 +256,74 @@ class ChartProcessor:
                                 self.logger.debug("Set chartType to pieChart")
 
                     # Extract series data
-                    series_elements = chart_root.findall('.//c:ser', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
+                    series_elements = chart_root.findall(
+                        './/c:ser', {
+                            'c':
+                            'http://schemas.openxmlformats.org/drawingml/2006/chart'
+                        })
                     self.logger.debug("Extracting series data")
-                    chart_data = {
-                        "series": [],
-                        "categories": []
-                    }
+                    chart_data = {"series": [], "categories": []}
 
                     for series in series_elements:
                         series_data = {}
                         self.logger.debug("Extracting series")
 
                         # Get series name
-                        series_name = series.find('.//c:tx//c:v', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
+                        series_name = series.find(
+                            './/c:tx//c:v', {
+                                'c':
+                                'http://schemas.openxmlformats.org/drawingml/2006/chart'
+                            })
                         if series_name is not None:
                             series_data["name"] = series_name.text
-                        self.logger.debug(f"Series name: {series_data.get('name', '')}")
+                        self.logger.debug(
+                            f"Series name: {series_data.get('name', '')}")
 
                         # Get data range
-                        data_ref = series.find('.//c:val//c:numRef//c:f', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
+                        data_ref = series.find(
+                            './/c:val//c:numRef//c:f', {
+                                'c':
+                                'http://schemas.openxmlformats.org/drawingml/2006/chart'
+                            })
                         if data_ref is not None:
                             series_data["data_range"] = data_ref.text
-                        self.logger.debug(f"Data range: {series_data.get('data_range', '')}")
+                        self.logger.debug(
+                            f"Data range: {series_data.get('data_range', '')}")
 
                         # Get data values
-                        values = series.findall('.//c:val//c:numRef//c:numCache//c:v', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
+                        values = series.findall(
+                            './/c:val//c:numRef//c:numCache//c:v', {
+                                'c':
+                                'http://schemas.openxmlformats.org/drawingml/2006/chart'
+                            })
                         if values:
-                            values_list = [float(v.text) if v.text.replace('.', '', 1).isdigit() else 0 for v in values]
+                            values_list = [
+                                float(v.text)
+                                if v.text.replace('.', '', 1).isdigit() else 0
+                                for v in values
+                            ]
                             series_data["values"] = values_list
                             chart_data["series"].append(values_list)
-                        self.logger.debug(f"Values: {series_data.get('values', [])}")
+                        self.logger.debug(
+                            f"Values: {series_data.get('values', [])}")
 
                         # Get categories
-                        cats = series.findall('.//c:cat//c:strRef//c:strCache//c:v', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
+                        cats = series.findall(
+                            './/c:cat//c:strRef//c:strCache//c:v', {
+                                'c':
+                                'http://schemas.openxmlformats.org/drawingml/2006/chart'
+                            })
                         if cats and not chart_data["categories"]:
                             chart_data["categories"] = [c.text for c in cats]
-                        self.logger.debug(f"Categories: {chart_data.get('categories', [])}")
+                        self.logger.debug(
+                            f"Categories: {chart_data.get('categories', [])}")
 
                         chart_info["series"].append(series_data)
 
                     # Set chart data
                     chart_info["chart_data_json"] = json.dumps(chart_data)
-                    self.logger.info(f"Complete chart info: {json.dumps(chart_info, indent=2)}")
-                    self.logger.info(f"Chart data: {json.dumps(chart_data, indent=2)}")
+                    self.logger.info("Complete chart info")
+                    # self.logger.info(f"Chart data: {json.dumps(chart_data, indent=2)}")
 
             return chart_info
         except Exception as e:
