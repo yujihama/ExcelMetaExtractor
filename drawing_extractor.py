@@ -273,7 +273,9 @@ class DrawingExtractor:
                         image_info["image_ref"] = image_ref
 
                         try:
-                            rels_path = f'xl/drawings/_rels/drawing1.xml.rels'
+                            # シート固有のdrawing番号を使用
+                            drawing_number = os.path.basename(drawing_path).replace('drawing', '').replace('.xml', '')
+                            rels_path = f'xl/drawings/_rels/drawing{drawing_number}.xml.rels'
                             if rels_path in excel_zip.namelist():
                                 with excel_zip.open(rels_path) as rels_file:
                                     rels_tree = ET.parse(rels_file)
