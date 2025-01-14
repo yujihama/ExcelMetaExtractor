@@ -77,6 +77,10 @@ class Logger:
         else:
             self.logger.error(message)
 
+    def exception(self, error):
+        """例外のスタックトレースを記録"""
+        self.logger.exception(error)
+
     def debug(self, message):
         """デバッグ情報をログに記録"""
         self.logger.debug(message)
