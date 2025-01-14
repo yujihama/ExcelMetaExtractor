@@ -84,6 +84,18 @@ def display_region_info(region):
                     f"状態: {'選択済み' if region.get('form_control_state', False) else '未選択'}"
                 )
 
+        # テキスト領域の表示
+        elif region['regionType'] == 'text':
+            st.markdown("#### Text Content")
+            if 'sampleCells' in region:
+                text_content = []
+                for row in region['sampleCells']:
+                    for cell in row:
+                        if cell['value']:
+                            text_content.append(cell['value'])
+                st.text('\n'.join(text_content))
+                region['text_content'] = '\n'.join(text_content)
+
         # 画像、SmartArt、グラフの情報を表示
         elif region['regionType'] in ['image', 'smartart', 'chart']:
             # st.markdown("#### Drawing Information")
