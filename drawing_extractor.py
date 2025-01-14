@@ -202,10 +202,12 @@ class DrawingExtractor:
                 image_info["range"] = range_str
                 drawing_list.append(image_info)
 
-        # Process charts
+        # Process charts using ChartProcessor
+        from chart_processor import ChartProcessor
         chart = anchor.find('.//c:chart', self.ns)
         if chart is not None:
-            chart_info = self._extract_chart_info(chart, excel_zip)
+            chart_processor = ChartProcessor(self.logger)
+            chart_info = chart_processor._extract_chart_info(chart, excel_zip)
             if chart_info:
                 chart_info["coordinates"] = coordinates
                 chart_info["range"] = range_str
