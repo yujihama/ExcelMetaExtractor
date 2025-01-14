@@ -222,6 +222,15 @@ class DrawingExtractor:
                 for anchor in anchors:
                     self._process_shapes(anchor, vml_controls, drawing_list)
                     self._process_drawings(anchor, excel_zip, drawing_list, openai_helper)
+                    
+                    # SmartArtの検出と処理
+                    smartart_elem = anchor.find('.//a:graphicData[@uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"]', self.ns)
+                    if smartart_elem is not None:
+                        smartart_info = self._extract_smartart_info(smartart_elem, excel_zip)
+                        if smartart_info:
+                            smartart_info["coordinates"] = self._get_coordinates(anchor)
+                            smartart_info["range"] = self._get_range_from_coordinates(smartart_info["coordinates"])
+                            drawing_list.append(smartart_info)
 
         except Exception as e:
             self.logger.error(f"Error in extract_drawing_info: {str(e)}")
