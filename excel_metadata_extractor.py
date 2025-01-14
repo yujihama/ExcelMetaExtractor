@@ -361,7 +361,7 @@ class ExcelMetadataExtractor:
             self.logger.info("=== Drawing Regions ===")
             for idx, region in enumerate(drawing_regions):
                 self.logger.info(f"Drawing Region {idx + 1}: Type={region.get('regionType', 'unknown')}, Range={region.get('range', 'N/A')}")
-            
+
             self.logger.info("=== Cell Regions ===")
             for idx, region in enumerate(cell_regions):
                 self.logger.info(f"Cell Region {idx + 1}: Type={region.get('regionType', 'unknown')}, Range={region.get('range', 'N/A')}")
