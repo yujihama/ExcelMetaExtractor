@@ -190,7 +190,7 @@ class DrawingExtractor:
             if shape_info:
                 drawing_list.append(shape_info)
 
-    def _process_drawings(self, anchor, excel_zip, drawing_list, openai_helper):
+    def _process_drawings(self, anchor, excel_zip, drawing_list, openai_helper, drawing_path):
         coordinates = self._get_coordinates(anchor)
         range_str = self._get_range_from_coordinates(coordinates)
 
@@ -271,7 +271,7 @@ class DrawingExtractor:
 
                 for anchor in anchors:
                     self._process_shapes(anchor, vml_controls, drawing_list)
-                    self._process_drawings(anchor, excel_zip, drawing_list, openai_helper)
+                    self._process_drawings(anchor, excel_zip, drawing_list, openai_helper, drawing_path)
                     
                     # SmartArtの検出と処理
                     smartart_elem = anchor.find('.//a:graphicData[@uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"]', self.ns)
