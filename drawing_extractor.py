@@ -172,6 +172,12 @@ class DrawingExtractor:
             with excel_zip.open(drawing_path) as xml_file:
                 tree = ET.parse(xml_file)
                 root = tree.getroot()
+                
+                # SmartArt要素のログ出力
+                smartart_elements = root.findall('.//mc:AlternateContent', {'mc': 'http://schemas.openxmlformats.org/markup-compatibility/2006'})
+                self.logger.debug(f"Found {len(smartart_elements)} SmartArt elements")
+                for elem in smartart_elements:
+                    self.logger.debug(f"SmartArt element attributes: {elem.attrib}")
 
                 anchors = (
                     root.findall('.//xdr:twoCellAnchor', self.ns) +
@@ -261,4 +267,18 @@ class DrawingExtractor:
             return None
         except Exception as e:
             self.logger.error(f"Error in extract_picture_info: {str(e)}")
+            return None
+    def _extract_smartart_info(self, smartart_elem, excel_zip):
+        try:
+            name_elem = smartart_elem.find('.//dgm:t', {'dgm': 'http://schemas.openxmlformats.org/drawingml/2006/diagram'})
+            if name_elem is not None:
+                self.logger.debug(f"Found SmartArt text: {name_elem.text}")
+                return {
+                    "type": "smartart",
+                    "name": name_elem.text if name_elem.text else "",
+                    "description": ""
+                }
+            return None
+        except Exception as e:
+            self.logger.error(f"Error in _extract_smartart_info: {str(e)}")
             return None
