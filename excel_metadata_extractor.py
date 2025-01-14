@@ -85,29 +85,7 @@ class ExcelMetadataExtractor:
         return self.chart_processor.recreate_charts(chart_data_list, output_dir)
 
     def extract_drawing_info(self, sheet, excel_zip, drawing_path) -> List[Dict[str, Any]]:
-        self.logger.method_start("extract_drawing_info")
-        drawing_list = []
-        try:
-            vml_controls = self._get_vml_controls(excel_zip)
-
-            with excel_zip.open(drawing_path) as xml_file:
-                tree = ET.parse(xml_file)
-                root = tree.getroot()
-
-                anchors = (
-                    root.findall('.//xdr:twoCellAnchor', self.ns) +
-                    root.findall('.//xdr:oneCellAnchor', self.ns) +
-                    root.findall('.//xdr:absoluteAnchor', self.ns)
-                )
-
-                for anchor in anchors:
-                    self._process_shapes(anchor, vml_controls, drawing_list)
-                    self._process_drawings(anchor, excel_zip, drawing_list, drawing_path)
-
-        except Exception as e:
-            self.logger.error(f"Error in extract_drawing_info: {str(e)}")
-
-        return drawing_list
+        return self.drawing_extractor.extract_drawing_info(sheet, excel_zip, drawing_path, self.openai_helper)
 
     def _get_vml_controls(self, excel_zip):
         vml_controls = []
