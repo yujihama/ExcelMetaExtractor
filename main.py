@@ -91,10 +91,13 @@ def display_region_info(region):
                 text_content = []
                 for row in region['sampleCells']:
                     for cell in row:
-                        if cell['value']:
-                            text_content.append(cell['value'])
-                st.text('\n'.join(text_content))
-                region['text_content'] = '\n'.join(text_content)
+                        if cell['value'] and str(cell['value']).strip():
+                            text_content.append(str(cell['value']).strip())
+                if text_content:
+                    st.text('\n'.join(text_content))
+                    region['text_content'] = '\n'.join(text_content)
+                else:
+                    st.info("No text content found")
 
         # 画像、SmartArt、グラフの情報を表示
         elif region['regionType'] in ['image', 'smartart', 'chart']:
