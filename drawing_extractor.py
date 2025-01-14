@@ -122,10 +122,14 @@ class DrawingExtractor:
                             shape_info["is_first_button"] = matching_control[
                                 "is_first_button"]
                     else:
-                        txBody_elements = sp.findall('.//xdr:txBody//a:t', self.ns)
+                        txBody_elements = sp.findall('.//xdr:txBody//a:t',
+                                                     self.ns)
                         if txBody_elements:
-                            texts = [elem.text for elem in txBody_elements if elem.text]
-                            shape_info["text_content"] = "\n".join(texts)
+                            texts = [
+                                elem.text for elem in txBody_elements
+                                if elem.text
+                            ]
+                            shape_info["text_content"] = " ".join(texts)
 
             return shape_info
         except Exception as e:
@@ -329,18 +333,22 @@ class DrawingExtractor:
                             smartart_elem, excel_zip, drawing_path)
                         if smartart_info:
                             # 座標情報を設定
-                            smartart_info["coordinates"] = self._get_coordinates(anchor)
-                            smartart_info["range"] = self._get_range_from_coordinates(
-                                smartart_info["coordinates"])
-                            
+                            smartart_info[
+                                "coordinates"] = self._get_coordinates(anchor)
+                            smartart_info[
+                                "range"] = self._get_range_from_coordinates(
+                                    smartart_info["coordinates"])
+
                             # テキストコンテンツを文字列として結合
                             if "nodes" in smartart_info:
                                 all_texts = []
                                 for node in smartart_info["nodes"]:
-                                    if "text_list" in node and node["text_list"]:
+                                    if "text_list" in node and node[
+                                            "text_list"]:
                                         all_texts.extend(node["text_list"])
-                                smartart_info["text_content"] = " ".join(all_texts)
-                            
+                                smartart_info["text_content"] = " ".join(
+                                    all_texts)
+
                             drawing_list.append(smartart_info)
 
         except Exception as e:
@@ -540,27 +548,31 @@ class DrawingExtractor:
                 f for f in excel_zip.namelist()
                 if f.startswith("xl/diagrams/") and f.endswith(".xml")
             ]
-            
+
             diagram_path = None
             # データモデルファイルを探す
             for diag_file in diagram_files:
                 if "data" in diag_file.lower() or "dm" in diag_file.lower():
                     diagram_path = diag_file
                     break
-            
+
             # 見つからない場合は従来の方法でも探す
             if not diagram_path:
-                drawing_number = os.path.basename(drawing_path).replace('drawing', '').replace('.xml', '')
+                drawing_number = os.path.basename(drawing_path).replace(
+                    'drawing', '').replace('.xml', '')
                 rels_path = f'xl/drawings/_rels/drawing{drawing_number}.xml.rels'
-                
+
                 if rels_path in excel_zip.namelist():
                     with excel_zip.open(rels_path) as rels_file:
                         rels_tree = ET.parse(rels_file)
                         rels_root = rels_tree.getroot()
-                        
-                        for rel in rels_root.findall('.//{http://schemas.openxmlformats.org/package/2006/relationships}Relationship'):
+
+                        for rel in rels_root.findall(
+                                './/{http://schemas.openxmlformats.org/package/2006/relationships}Relationship'
+                        ):
                             if rel.get('Id') == rel_id:
-                                diagram_path = 'xl/' + rel.get('Target').replace('..', '')
+                                diagram_path = 'xl/' + rel.get(
+                                    'Target').replace('..', '')
                                 break
 
             if not diagram_path or diagram_path not in excel_zip.namelist():
@@ -572,8 +584,10 @@ class DrawingExtractor:
                 root = tree.getroot()
 
                 ns = {
-                    'dgm': 'http://schemas.openxmlformats.org/drawingml/2006/diagram',
-                    'a': 'http://schemas.openxmlformats.org/drawingml/2006/main'
+                    'dgm':
+                    'http://schemas.openxmlformats.org/drawingml/2006/diagram',
+                    'a':
+                    'http://schemas.openxmlformats.org/drawingml/2006/main'
                 }
 
                 nodes = root.findall('.//dgm:pt', ns)
@@ -587,18 +601,18 @@ class DrawingExtractor:
 
                 for node in nodes:
                     node_id = node.get('modelId')
-                    
+
                     # すべての a:t 要素を検索してテキストを抽出
                     all_a_t_elems = node.findall('.//a:t', ns)
                     texts = [el.text for el in all_a_t_elems if el.text]
-                    
+
                     diagram_data['nodes'].append({
                         'id': node_id,
                         'text_list': texts,
                     })
 
                 return diagram_data
-            
+
         except Exception as e:
             self.logger.error(f"Error extracting diagram data: {str(e)}")
             return None
