@@ -373,13 +373,13 @@ class DrawingExtractor:
             rel_ids = smartart_elem.find('.//dgm:relIds', {'dgm': 'http://schemas.openxmlformats.org/drawingml/2006/diagram'})
             if rel_ids is not None:
                 self.logger.debug(f"Found relIds: {rel_ids.attrib}")
-                
-            # データモデルを探す
-            data_model = smartart_elem.find('.//dgm:dataModel', {'dgm': 'http://schemas.openxmlformats.org/drawingml/2006/diagram'})
-            if data_model is not None:
-                self.logger.debug("Found data model")
-                for child in data_model.iter():
-                    self.logger.debug(f"Data model child: {child.tag} - {child.attrib}")
+                return {
+                    "type": "smartart",
+                    "name": "SmartArt Diagram",
+                    "description": "",
+                    "diagram_type": "diagram",
+                    "rel_ids": rel_ids.attrib
+                }
             
             name_elem = smartart_elem.find('.//dgm:t', {'dgm': 'http://schemas.openxmlformats.org/drawingml/2006/diagram'})
             if name_elem is not None:
@@ -387,7 +387,8 @@ class DrawingExtractor:
                 return {
                     "type": "smartart",
                     "name": name_elem.text if name_elem.text else "",
-                    "description": ""
+                    "description": "",
+                    "diagram_type": "diagram"
                 }
             
             # GraphicData要素からの検索も試みる
