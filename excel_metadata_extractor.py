@@ -510,7 +510,7 @@ class ExcelMetadataExtractor:
                 if "regions" in sheet:
                     for region in sheet["regions"]:
                         if "sampleCells" in region:
-                            del region["sampleCells"]
+                            region["sampleCells"] = region["sampleCells"][:200]
 
             metadata = {
                 **file_metadata, "worksheets": sheets_metadata,

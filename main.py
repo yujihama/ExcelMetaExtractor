@@ -87,13 +87,11 @@ def display_region_info(region):
         # テキスト領域の表示
         elif region['regionType'] == 'text':
             st.markdown("#### Text Content")
+
             if 'sampleCells' in region:
-                st.write("Debug: Found sampleCells")
                 text_content = []
                 for row in region['sampleCells']:
-                    st.write(f"Debug: Processing row: {row}")
                     for cell in row:
-                        st.write(f"Debug: Processing cell: {cell}")
                         if cell.get('value') and str(cell['value']).strip():
                             text_content.append(str(cell['value']).strip())
                 if text_content:
