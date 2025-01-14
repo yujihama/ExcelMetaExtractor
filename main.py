@@ -62,8 +62,7 @@ def display_region_info(region):
             cols = st.columns(2)
             with cols[0]:
                 if 'shape_type' in region and region['shape_type']:
-                    st.metric("Shape Type",
-                              region.get('shape_type', 'Unknown').title())
+                    st.metric("Shape Type", region.get('shape_type', 'Unknown').title())
                 if region.get('name'):
                     st.text(f"Name: {region['name']}")
             with cols[1]:
@@ -136,40 +135,31 @@ def display_region_info(region):
                 st.markdown("#### Header Structure")
                 cols = st.columns(3)
                 with cols[0]:
-                    header_type = region['headerStructure'].get(
-                        'headerType', 'Unknown')
+                    header_type = region['headerStructure'].get('headerType', 'Unknown')
                     st.metric("Header Type", header_type.title())
                 with cols[1]:
-                    header_range = region['headerStructure'].get(
-                        'headerRange', 'N/A')
+                    header_range = region['headerStructure'].get('headerRange', 'N/A')
                     st.metric("Header Range", header_range)
                 with cols[2]:
-                    has_merged = region['headerStructure'].get(
-                        'mergedCells', False)
-                    st.metric("Has Merged Cells",
-                              "Yes" if has_merged else "No")
+                    has_merged = region['headerStructure'].get('mergedCells', False)
+                    st.metric("Has Merged Cells", "Yes" if has_merged else "No")
 
                 # ヘッダー列の表示
-                if 'sampleCells' in region and 'headerStructure' in region and region[
-                        'headerStructure'].get('headerRows'):
+                if 'sampleCells' in region and 'headerStructure' in region and region['headerStructure'].get('headerRows'):
                     st.markdown("#### Header Columns")
-                    header_rows_indices = region['headerStructure'][
-                        'headerRows']
+                    header_rows_indices = region['headerStructure']['headerRows']
                     start_row = region['headerStructure']['start_row']
 
                     # ヘッダー情報を列ごとに整理
                     header_columns = {}
                     for header_row_index in header_rows_indices:
-                        header_row = region['sampleCells'][
-                            int(header_row_index) - int(start_row)]
+                        header_row = region['sampleCells'][int(header_row_index) - int(start_row)]
                         for cell in header_row:
                             col_letter = get_column_letter(cell['col'])
                             if col_letter not in header_columns:
                                 header_columns[col_letter] = []
-                            if cell['value'] and cell[
-                                    'value'] not in header_columns[col_letter]:
-                                header_columns[col_letter].append(
-                                    cell['value'])
+                            if cell['value'] and cell['value'] not in header_columns[col_letter]:
+                                header_columns[col_letter].append(cell['value'])
 
                     # ヘッダー情報を表示
                     for col_letter, values in sorted(header_columns.items()):
@@ -214,8 +204,7 @@ def main():
     """)
 
     # ファイルアップローダーの表示
-    uploaded_file = st.file_uploader("Choose an Excel file",
-                                     type=['xlsx', 'xlsm'])
+    uploaded_file = st.file_uploader("Choose an Excel file", type=['xlsx', 'xlsm'])
 
     if uploaded_file is not None:
         with st.spinner("Extracting metadata..."):
@@ -242,8 +231,7 @@ def main():
                     with cols[1]:
                         st.metric("Columns", sheet["columnCount"])
                     with cols[2]:
-                        st.metric("Merged Cells", len(sheet.get("mergedCells",
-                                                                [])))
+                        st.metric("Merged Cells", len(sheet.get("mergedCells", [])))
     
                     # 結合セルの表示
                     if sheet.get("mergedCells"):
@@ -278,9 +266,7 @@ def main():
                                             st.write(region["summary"])
     
                             except Exception as e:
-                                st.error(
-                                    f"Error processing region: {str(e)}\nRegion data: {json.dumps(region, indent=2)}"
-                                )
+                                st.error(f"Error processing region: {str(e)}\nRegion data: {json.dumps(region, indent=2)}")
                                 st.error(f"Stack trace:\n{traceback.format_exc()}")
     
                     st.markdown("---")  # シート間の区切り線

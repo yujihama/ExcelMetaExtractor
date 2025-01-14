@@ -1,4 +1,14 @@
 
+"""
+Cell Processor Module
+エクセルのセルデータを処理・分析するモジュール
+
+主な機能:
+- セルタイプの分析
+- セル領域の抽出
+- 結合セルの処理
+"""
+
 from datetime import datetime
 from typing import Dict, Any, List
 from openpyxl.utils import get_column_letter
@@ -7,9 +17,24 @@ from logger import Logger
 
 class CellProcessor:
     def __init__(self, logger: Logger):
+        """
+        セル処理クラスの初期化
+        
+        Args:
+            logger: ログ出力用のLoggerインスタンス
+        """
         self.logger = logger
 
     def analyze_cell_type(self, cell) -> str:
+        """
+        セルのデータ型を分析
+        
+        Args:
+            cell: 分析対象のセル
+            
+        Returns:
+            str: セルのデータ型を示す文字列
+        """
         if cell.value is None:
             return "empty"
         if isinstance(cell.value, (int, float)):
@@ -19,6 +44,19 @@ class CellProcessor:
         return "text"
 
     def extract_region_cells(self, sheet, start_row: int, start_col: int, max_row: int, max_col: int) -> List[List[Dict[str, Any]]]:
+        """
+        指定された領域のセルデータを抽出
+        
+        Args:
+            sheet: 対象のワークシート
+            start_row: 開始行
+            start_col: 開始列
+            max_row: 終了行
+            max_col: 終了列
+            
+        Returns:
+            List[List[Dict[str, Any]]]: 抽出されたセルデータの2次元配列
+        """
         cells_data = []
         actual_max_row = max_row
         actual_max_col = max_col

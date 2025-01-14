@@ -1,14 +1,38 @@
 
+"""
+VML Processor Module
+VML (Vector Markup Language) 形式のExcelコントロールを処理するモジュール
+
+主な機能:
+- チェックボックスの解析
+- ラジオボタンの解析
+- コントロールの位置情報の抽出
+"""
+
 from logger import Logger
 from openpyxl.utils import get_column_letter
 import xml.etree.ElementTree as ET
 
 class VMLProcessor:
     def __init__(self, logger: Logger):
+        """
+        VML処理クラスの初期化
+        
+        Args:
+            logger: ログ出力用のLoggerインスタンス
+        """
         self.logger = logger
 
     def parse_vml_for_controls(self, vml_content):
-        """VMLコンテンツからコントロール情報を抽出"""
+        """
+        VMLコンテンツからコントロール情報を抽出
+        
+        Args:
+            vml_content: 解析対象のVMLコンテンツ
+            
+        Returns:
+            List[Dict]: 抽出されたコントロール情報のリスト
+        """
         controls = []
         try:
             namespaces = {
