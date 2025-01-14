@@ -108,11 +108,7 @@ class ExcelMetadataExtractor:
         return vml_processor.parse_vml_for_controls(vml_content)
 
     def extract_drawing_info(self, sheet, excel_zip, drawing_path) -> List[Dict[str, Any]]:
-        return self.drawing_extractor.extract_drawing_info(sheet, excel_zip, drawing_path, self.openai_helper)p, self.ns, drawing_path)
-            if image_info:
-                image_info["coordinates"] = coordinates
-                image_info["range"] = range_str
-                drawing_list.append(image_info)
+        return self.drawing_extractor.extract_drawing_info(sheet, excel_zip, drawing_path, self.openai_helper)
 
         # Process charts
         chart = anchor.find('.//c:chart', self.ns)
