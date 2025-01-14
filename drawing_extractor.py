@@ -578,18 +578,14 @@ class DrawingExtractor:
 
                 for node in nodes:
                     node_id = node.get('modelId')
-                    texts = []
-                    for t_elem in node.findall('.//dgm:t', ns):
-                        if t_elem.text:
-                            texts.append(t_elem.text)
-
-                    title_elems = node.findall('.//dgm:title', ns)
-                    titles = [title.text for title in title_elems if title.text]
-
+                    
+                    # すべての a:t 要素を検索してテキストを抽出
+                    all_a_t_elems = node.findall('.//a:t', ns)
+                    texts = [el.text for el in all_a_t_elems if el.text]
+                    
                     diagram_data['nodes'].append({
                         'id': node_id,
                         'text_list': texts,
-                        'title_list': titles,
                     })
 
                 return diagram_data
