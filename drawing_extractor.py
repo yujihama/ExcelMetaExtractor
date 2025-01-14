@@ -366,42 +366,118 @@ class DrawingExtractor:
     def _extract_smartart_info(self, smartart_elem, excel_zip):
         try:
             self.logger.debug("Extracting SmartArt info")
-            self.logger.debug(f"Element tag: {smartart_elem.tag}")
-            self.logger.debug(f"Element attributes: {smartart_elem.attrib}")
+            
+            smartart_info = {
+                "type": "smartart",
+                "name": "",
+                "description": "",
+                "diagram_type": "",
+                "layout_type": "",
+                "text_contents": [],
+                "style": {},
+                "nodes": []
+            }
             
             # SmartArtのリレーションシップIDを探す
             rel_ids = smartart_elem.find('.//dgm:relIds', {'dgm': 'http://schemas.openxmlformats.org/drawingml/2006/diagram'})
             if rel_ids is not None:
                 self.logger.debug(f"Found relIds: {rel_ids.attrib}")
-                return {
-                    "type": "smartart",
-                    "name": "SmartArt Diagram",
-                    "description": "",
-                    "diagram_type": "diagram",
-                    "rel_ids": rel_ids.attrib
-                }
-            
-            name_elem = smartart_elem.find('.//dgm:t', {'dgm': 'http://schemas.openxmlformats.org/drawingml/2006/diagram'})
-            if name_elem is not None:
-                self.logger.debug(f"Found SmartArt text: {name_elem.text}")
-                return {
-                    "type": "smartart",
-                    "name": name_elem.text if name_elem.text else "",
-                    "description": "",
-                    "diagram_type": "diagram"
-                }
-            
-            # GraphicData要素からの検索も試みる
-            graphic_data = smartart_elem.find('.//a:graphicData[@uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"]',
-                                           {'a': 'http://schemas.openxmlformats.org/drawingml/2006/main'})
-            if graphic_data is not None:
-                self.logger.debug("Found SmartArt graphic data")
-                return {
-                    "type": "smartart",
-                    "name": "SmartArt Graphic",
-                    "description": ""
-                }
+                data_model_rel = rel_ids.get('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}dm')
+                style_rel = rel_ids.get('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}quickStyle')
+                color_rel = rel_ids.get('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}color')
                 
+                # データモデルの解析
+                if data_model_rel:
+                    diagram_data = self._extract_diagram_data(excel_zip, data_model_rel)
+                    if diagram_data:
+                        smartart_info.update(diagram_data)
+                
+                # スタイル情報の解析
+                if style_rel:
+                    style_data = self._extract_style_data(excel_zip, style_rel)
+                    if style_data:
+                        smartart_info["style"] = style_data
+            
+            # レイアウトタイプの取得
+            layout_elem = smartart_elem.find('.//dgm:layoutDef', {'dgm': 'http://schemas.openxmlformats.org/drawingml/2006/diagram'})
+            if layout_elem is not None:
+                smartart_info["layout_type"] = layout_elem.get('uniqueId', '')
+            
+            # テキスト内容の取得
+            for text_elem in smartart_elem.findall('.//dgm:t', {'dgm': 'http://schemas.openxmlformats.org/drawingml/2006/diagram'}):
+                if text_elem is not None and text_elem.text:
+                    smartart_info["text_contents"].append({
+                        "text": text_elem.text,
+                        "level": self._get_text_level(text_elem)
+                    })
+            
+            # ノード構造の解析
+            for pt_elem in smartart_elem.findall('.//dgm:pt', {'dgm': 'http://schemas.openxmlformats.org/drawingml/2006/diagram'}):
+                node_info = self._extract_node_info(pt_elem)
+                if node_info:
+                    smartart_info["nodes"].append(node_info)
+            
+            return smartart_info
+        except Exception as e:
+            self.logger.error(f"Error in _extract_smartart_info: {str(e)}")
+            self.logger.exception(e)
+            return None
+
+    def _extract_diagram_data(self, excel_zip, rel_id):
+        try:
+            diagram_path = f'xl/diagrams/data{rel_id}.xml'
+            if diagram_path in excel_zip.namelist():
+                with excel_zip.open(diagram_path) as f:
+                    tree = ET.parse(f)
+                    root = tree.getroot()
+                    
+                    return {
+                        "diagram_type": root.get('type', ''),
+                        "name": root.get('name', ''),
+                        "description": root.get('description', '')
+                    }
+            return None
+        except Exception as e:
+            self.logger.error(f"Error extracting diagram data: {str(e)}")
+            return None
+
+    def _extract_style_data(self, excel_zip, rel_id):
+        try:
+            style_path = f'xl/diagrams/quickStyle{rel_id}.xml'
+            if style_path in excel_zip.namelist():
+                with excel_zip.open(style_path) as f:
+                    tree = ET.parse(f)
+                    root = tree.getroot()
+                    
+                    return {
+                        "style_id": root.get('id', ''),
+                        "category": root.get('cat', ''),
+                        "color_scheme": root.get('colorStyle', '')
+                    }
+            return None
+        except Exception as e:
+            self.logger.error(f"Error extracting style data: {str(e)}")
+            return None
+
+    def _get_text_level(self, text_elem):
+        try:
+            parent = text_elem.getparent()
+            while parent is not None:
+                if parent.tag.endswith('lvl'):
+                    return int(parent.get('val', '0'))
+                parent = parent.getparent()
+            return 0
+        except Exception:
+            return 0
+
+    def _extract_node_info(self, pt_elem):
+        try:
+            return {
+                "node_id": pt_elem.get('modelId', ''),
+                "node_type": pt_elem.get('type', ''),
+                "text": pt_elem.findtext('.//dgm:t', '', {'dgm': 'http://schemas.openxmlformats.org/drawingml/2006/diagram'})
+            }
+        except Exception:
             return None
         except Exception as e:
             self.logger.error(f"Error in _extract_smartart_info: {str(e)}")
