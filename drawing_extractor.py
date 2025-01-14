@@ -325,31 +325,36 @@ class DrawingExtractor:
                                            openai_helper, drawing_path)
 
                     # SmartArtの検出と処理
-                    smartart_elem = anchor.find(
+                    smartart_elems = anchor.findall(
                         './/a:graphicData[@uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"]',
                         self.ns)
-                    if smartart_elem is not None:
-                        smartart_info = self._extract_smartart_info(
-                            smartart_elem, excel_zip, drawing_path)
-                        if smartart_info:
-                            # 座標情報を設定
-                            smartart_info[
-                                "coordinates"] = self._get_coordinates(anchor)
-                            smartart_info[
-                                "range"] = self._get_range_from_coordinates(
-                                    smartart_info["coordinates"])
+                    for smartart_elem in smartart_elems:
+                        # 各SmartArt要素に固有のIDを取得
+                        rel_ids = smartart_elem.find('.//dgm:relIds', {
+                            'dgm': 'http://schemas.openxmlformats.org/drawingml/2006/diagram'
+                        })
+                        if rel_ids is not None:
+                            smartart_info = self._extract_smartart_info(
+                                smartart_elem, excel_zip, drawing_path)
+                            if smartart_info:
+                                # 座標情報を設定
+                                smartart_info[
+                                    "coordinates"] = self._get_coordinates(anchor)
+                                smartart_info[
+                                    "range"] = self._get_range_from_coordinates(
+                                        smartart_info["coordinates"])
 
-                            # テキストコンテンツを文字列として結合
-                            if "nodes" in smartart_info:
-                                all_texts = []
-                                for node in smartart_info["nodes"]:
-                                    if "text_list" in node and node[
-                                            "text_list"]:
-                                        all_texts.extend(node["text_list"])
-                                smartart_info["text_content"] = " ".join(
-                                    all_texts)
+                                # テキストコンテンツを文字列として結合
+                                if "nodes" in smartart_info:
+                                    all_texts = []
+                                    for node in smartart_info["nodes"]:
+                                        if "text_list" in node and node[
+                                                "text_list"]:
+                                            all_texts.extend(node["text_list"])
+                                    smartart_info["text_content"] = " ".join(
+                                        all_texts)
 
-                            drawing_list.append(smartart_info)
+                                drawing_list.append(smartart_info)
 
         except Exception as e:
             self.logger.error(f"Error in extract_drawing_info: {str(e)}")
