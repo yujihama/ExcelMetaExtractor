@@ -541,7 +541,6 @@ class DrawingExtractor:
                             break
             
             if diagram_path and diagram_path in excel_zip.namelist():
-            if diagram_path in excel_zip.namelist():
                 with excel_zip.open(diagram_path) as f:
                     tree = ET.parse(f)
                     root = tree.getroot()
