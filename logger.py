@@ -23,7 +23,7 @@ class Logger:
             logging.WARNING)
 
         # 基本設定
-        logging.basicConfig(level=logging.INFO,
+        logging.basicConfig(level=logging.WARNING,
                             format='%(asctime)s [%(levelname)s] %(message)s',
                             handlers=[
                                 logging.StreamHandler(),
