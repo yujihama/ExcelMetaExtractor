@@ -102,7 +102,7 @@ class ExcelMetadataExtractor:
 
                 for anchor in anchors:
                     self._process_shapes(anchor, vml_controls, drawing_list)
-                    self._process_drawings(anchor, excel_zip, drawing_list)
+                    self._process_drawings(anchor, excel_zip, drawing_list, drawing_path)
 
         except Exception as e:
             self.logger.error(f"Error in extract_drawing_info: {str(e)}")
@@ -135,7 +135,7 @@ class ExcelMetadataExtractor:
             if shape_info:
                 drawing_list.append(shape_info)
 
-    def _process_drawings(self, anchor, excel_zip, drawing_list):
+    def _process_drawings(self, anchor, excel_zip, drawing_list, drawing_path):
         coordinates = self.drawing_extractor._get_coordinates(anchor) 
         range_str = self.drawing_extractor._get_range_from_coordinates(coordinates) 
 
