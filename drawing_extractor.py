@@ -196,7 +196,7 @@ class DrawingExtractor:
 
         # Process images
         for pic in anchor.findall('.//xdr:pic', self.ns):
-            image_info = self.extract_picture_info(pic, excel_zip, self.ns, "")
+            image_info = self.extract_picture_info(pic, excel_zip, self.ns, drawing_path)
             if image_info:
                 image_info["coordinates"] = coordinates
                 image_info["range"] = range_str
