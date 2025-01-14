@@ -173,11 +173,30 @@ class DrawingExtractor:
                 tree = ET.parse(xml_file)
                 root = tree.getroot()
                 
-                # SmartArt要素のログ出力
-                smartart_elements = root.findall('.//mc:AlternateContent', {'mc': 'http://schemas.openxmlformats.org/markup-compatibility/2006'})
-                self.logger.debug(f"Found {len(smartart_elements)} SmartArt elements")
-                for elem in smartart_elements:
-                    self.logger.debug(f"SmartArt element attributes: {elem.attrib}")
+                # SmartArt要素の詳細検索とログ出力
+                ns = {
+                    'mc': 'http://schemas.openxmlformats.org/markup-compatibility/2006',
+                    'dgm': 'http://schemas.openxmlformats.org/drawingml/2006/diagram',
+                    'a': 'http://schemas.openxmlformats.org/drawingml/2006/main'
+                }
+                
+                # 複数のパターンで検索
+                smartart_patterns = [
+                    './/mc:AlternateContent',
+                    './/dgm:relIds',
+                    './/dgm:dataModel',
+                    './/a:graphicData[@uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"]'
+                ]
+                
+                for pattern in smartart_patterns:
+                    elements = root.findall(pattern, ns)
+                    self.logger.debug(f"Searching pattern '{pattern}' found {len(elements)} elements")
+                    for elem in elements:
+                        self.logger.debug(f"Element tag: {elem.tag}")
+                        self.logger.debug(f"Element attributes: {elem.attrib}")
+                        # 子要素も確認
+                        for child in elem.iter():
+                            self.logger.debug(f"Child element: {child.tag} - {child.attrib}")
 
                 anchors = (
                     root.findall('.//xdr:twoCellAnchor', self.ns) +
@@ -270,6 +289,22 @@ class DrawingExtractor:
             return None
     def _extract_smartart_info(self, smartart_elem, excel_zip):
         try:
+            self.logger.debug("Extracting SmartArt info")
+            self.logger.debug(f"Element tag: {smartart_elem.tag}")
+            self.logger.debug(f"Element attributes: {smartart_elem.attrib}")
+            
+            # SmartArtのリレーションシップIDを探す
+            rel_ids = smartart_elem.find('.//dgm:relIds', {'dgm': 'http://schemas.openxmlformats.org/drawingml/2006/diagram'})
+            if rel_ids is not None:
+                self.logger.debug(f"Found relIds: {rel_ids.attrib}")
+                
+            # データモデルを探す
+            data_model = smartart_elem.find('.//dgm:dataModel', {'dgm': 'http://schemas.openxmlformats.org/drawingml/2006/diagram'})
+            if data_model is not None:
+                self.logger.debug("Found data model")
+                for child in data_model.iter():
+                    self.logger.debug(f"Data model child: {child.tag} - {child.attrib}")
+            
             name_elem = smartart_elem.find('.//dgm:t', {'dgm': 'http://schemas.openxmlformats.org/drawingml/2006/diagram'})
             if name_elem is not None:
                 self.logger.debug(f"Found SmartArt text: {name_elem.text}")
@@ -278,6 +313,18 @@ class DrawingExtractor:
                     "name": name_elem.text if name_elem.text else "",
                     "description": ""
                 }
+            
+            # GraphicData要素からの検索も試みる
+            graphic_data = smartart_elem.find('.//a:graphicData[@uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"]',
+                                           {'a': 'http://schemas.openxmlformats.org/drawingml/2006/main'})
+            if graphic_data is not None:
+                self.logger.debug("Found SmartArt graphic data")
+                return {
+                    "type": "smartart",
+                    "name": "SmartArt Graphic",
+                    "description": ""
+                }
+                
             return None
         except Exception as e:
             self.logger.error(f"Error in _extract_smartart_info: {str(e)}")
