@@ -22,7 +22,7 @@ import os
 def display_json_tree(data, key_prefix=""):
     """
     JSONデータをツリー形式で表示する補助関数
-    
+
     Args:
         data: 表示するJSONデータ
         key_prefix: ネストされたキーのプレフィックス
@@ -48,7 +48,7 @@ def display_json_tree(data, key_prefix=""):
 def display_region_info(region):
     """
     検出された領域の情報を構造化して表示する
-    
+
     Args:
         region: 領域情報を含む辞書
     """
@@ -88,16 +88,21 @@ def display_region_info(region):
         elif region['regionType'] == 'text':
             st.markdown("#### Text Content")
             if 'sampleCells' in region:
+                st.write("Debug: Found sampleCells")
                 text_content = []
                 for row in region['sampleCells']:
+                    st.write(f"Debug: Processing row: {row}")
                     for cell in row:
-                        if cell['value'] and str(cell['value']).strip():
+                        st.write(f"Debug: Processing cell: {cell}")
+                        if cell.get('value') and str(cell['value']).strip():
                             text_content.append(str(cell['value']).strip())
                 if text_content:
-                    st.text('\n'.join(text_content))
+                    st.markdown("```\n" + '\n'.join(text_content) + "\n```")
                     region['text_content'] = '\n'.join(text_content)
                 else:
-                    st.info("No text content found")
+                    st.info("No text content found in cells")
+            else:
+                st.warning("No cell data available")
 
         # 画像、SmartArt、グラフの情報を表示
         elif region['regionType'] in ['image', 'smartart', 'chart']:
