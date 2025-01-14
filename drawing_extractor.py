@@ -327,11 +327,19 @@ class DrawingExtractor:
                         smartart_info = self._extract_smartart_info(
                             smartart_elem, excel_zip, drawing_path)
                         if smartart_info:
-                            smartart_info[
-                                "coordinates"] = self._get_coordinates(anchor)
-                            smartart_info[
-                                "range"] = self._get_range_from_coordinates(
-                                    smartart_info["coordinates"])
+                            # 座標情報を設定
+                            smartart_info["coordinates"] = self._get_coordinates(anchor)
+                            smartart_info["range"] = self._get_range_from_coordinates(
+                                smartart_info["coordinates"])
+                            
+                            # テキストコンテンツを文字列として結合
+                            if "nodes" in smartart_info:
+                                all_texts = []
+                                for node in smartart_info["nodes"]:
+                                    if "text_list" in node and node["text_list"]:
+                                        all_texts.extend(node["text_list"])
+                                smartart_info["text_content"] = " ".join(all_texts)
+                            
                             drawing_list.append(smartart_info)
 
         except Exception as e:
