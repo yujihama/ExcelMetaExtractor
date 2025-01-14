@@ -469,7 +469,7 @@ class DrawingExtractor:
                         f"Extracting diagram data for rel_id: {data_model_rel}"
                     )
                     diagram_data = self._extract_diagram_data(
-                        excel_zip, data_model_rel)
+                        excel_zip, data_model_rel, drawing_path)
                     if diagram_data:
                         print(f"Diagram data extracted: {diagram_data}")
                         smartart_info.update(diagram_data)
@@ -524,7 +524,7 @@ class DrawingExtractor:
             self.logger.exception(e)
             return None
 
-    def _extract_diagram_data(self, excel_zip, rel_id):
+    def _extract_diagram_data(self, excel_zip, rel_id, drawing_path):
         try:
             # Get drawing number from the drawing path
             drawing_number = os.path.basename(drawing_path).replace('drawing', '').replace('.xml', '')
