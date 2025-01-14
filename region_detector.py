@@ -71,11 +71,15 @@ class RegionDetector:
                 empty_col_count = 0
                 max_col = col
 
-        # Maintain minimum boundaries
-        max_row = max(max_row, start_row)
-        max_col = max(max_col, start_col)
-
-        return max_row, max_col
+        # Maintain minimum boundaries and ensure single cells are not skipped
+        if sheet.cell(row=start_row, column=start_col).value is not None:
+            max_row = max(max_row, start_row)
+            max_col = max(max_col, start_col)
+            return max_row, max_col
+        else:
+            max_row = max(max_row, start_row)
+            max_col = max(max_col, start_col)
+            return max_row, max_col
 
     def get_merged_cells_info(self, sheet, start_row: int, start_col: int, max_row: int, max_col: int) -> List[Dict[str, Any]]:
         """
