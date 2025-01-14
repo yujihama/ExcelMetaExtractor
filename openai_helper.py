@@ -29,13 +29,14 @@ class OpenAIHelper:
                               json.dumps(cells[:2], ensure_ascii=False))
             elif region["regionType"] == "chart":
                 series_info = region.get('series', [])
-                data_range = series_info[0].get('data_range') if series_info else 'N/A'
-                self.logger.info(f"Chart region data: {json.dumps(region, indent=2)}")
+                data_range = series_info[0].get(
+                    'data_range') if series_info else 'N/A'
+                self.logger.info(
+                    f"Chart region data: {json.dumps(region, indent=2)}")
                 prompt = ("以下のグラフが何について記載されているか簡潔に説明してください:\n"
                           "グラフタイプ: %s\n"
                           "データ範囲: %s\n"
-                          "内容: %s") % (region.get('chartType', ''),
-                                       data_range,
+                          "内容: %s") % (region.get('chartType', ''), data_range,
                                        region.get('chart_data_json', ''))
             elif region["regionType"] == "image":
                 gpt4o_analysis = region.get("gpt4o_analysis", {})
@@ -59,8 +60,7 @@ class OpenAIHelper:
                           "領域タイプ: %s\n"
                           "範囲: %s\n"
                           "内容: %s") % (region['regionType'], region['range'],
-                                       json.dumps(region,
-                                                  ensure_ascii=False)[:200])
+                                       json.dumps(region, ensure_ascii=False))
 
             self.logger.gpt_prompt(prompt)
             response = self.client.chat.completions.create(model="gpt-4o",
