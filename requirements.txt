@@ -8,3 +8,5 @@ numpy
 openai
 openai
 trafilatura
+numpy
+python-dotenv
