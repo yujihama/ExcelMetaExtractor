@@ -1,3 +1,4 @@
+
 """
 Logger Module
 アプリケーション全体のログ管理を行うモジュール
@@ -23,7 +24,7 @@ class Logger:
             logging.WARNING)
 
         # 基本設定
-        logging.basicConfig(level=logging.WARNING,
+        logging.basicConfig(level=logging.INFO,
                             format='%(asctime)s [%(levelname)s] %(message)s',
                             handlers=[
                                 logging.StreamHandler(),
@@ -44,13 +45,11 @@ class Logger:
 
     def gpt_prompt(self, prompt):
         """GPTプロンプトをログに記録"""
-        self.logger.info(f"GPT Prompt:\n{prompt}")
+        pass  # APIリクエスト情報のログ出力を無効化
 
     def gpt_response(self, response):
         """GPTレスポンスをログに記録"""
-        self.logger.info(
-            f"GPT Response:\n{json.dumps(response, ensure_ascii=False, indent=2)}"
-        )
+        pass  # APIレスポンス情報のログ出力を無効化
 
     def region_detected(self, region_type, range_str):
         """領域検出をログに記録"""
@@ -95,7 +94,7 @@ class Logger:
 
     def debug(self, message):
         """デバッグ情報をログに記録"""
-        self.logger.debug(message)
+        pass  # デバッグ情報のログ出力を無効化
 
     def debug_region(self, row, col, value, region_type=None):
         """領域のデバッグ情報をログに記録"""
