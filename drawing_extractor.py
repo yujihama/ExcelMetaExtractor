@@ -528,11 +528,8 @@ class DrawingExtractor:
         try:
             # Extract numerical part after 'rId' in rel_id using regular expression
             import re
-            print(f"Extracting diagram data for rel_id: {type(rel_id)}")
-            match = re.search(r"rId(\\d+)", rel_id)
-            print(f"Found numerical part: {match}")
+            match = re.search(r"rId(\d+)", rel_id)
             numeric_part = match.group(1) if match else ''
-            print(f"Numeric part: {numeric_part}")
             # Use numeric part to generate xml path
             diagram_path = f'xl/diagrams/data{numeric_part}.xml'
             print(f"Extracting diagram data from path: {diagram_path}")
