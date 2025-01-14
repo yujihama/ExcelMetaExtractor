@@ -1,3 +1,15 @@
+"""
+Excel Metadata Extractor Core Module
+Excelファイルのメタデータを包括的に抽出・分析するコアモジュール
+
+このモジュールは以下の機能を提供します：
+- ファイルプロパティの抽出
+- シート情報の解析
+- 図形・画像・グラフの検出
+- テーブル構造の分析
+- AIを活用したコンテンツ解析
+"""
+
 import os
 import json
 import math
@@ -165,8 +177,6 @@ class ExcelMetadataExtractor:
                 connector_info["coordinates"] = coordinates
                 connector_info["range"] = range_str
                 drawing_list.append(connector_info)
-
-
 
 
 
