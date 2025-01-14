@@ -1,13 +1,13 @@
-
 """
 Logger Module
-エクセルメタデータ抽出の詳細なログ記録を提供するモジュール
+アプリケーション全体のログ管理を行うモジュール
 
 主な機能:
-- メソッドの実行開始/終了のログ
+- メソッドの実行開始/終了のログ記録
 - GPTプロンプトとレスポンスのログ
 - 領域検出と処理のログ
 - エラー処理とスタックトレースの記録
+- デバッグ情報の出力制御
 """
 
 import logging
@@ -18,7 +18,7 @@ class Logger:
     def __init__(self):
         # watchdogのデバッグログを無効化
         logging.getLogger('watchdog.observers.inotify_buffer').setLevel(logging.WARNING)
-        
+
         # 基本設定
         logging.basicConfig(
             level=logging.INFO,
@@ -80,7 +80,7 @@ class Logger:
     def debug(self, message):
         """デバッグ情報をログに記録"""
         self.logger.debug(message)
-        
+
     def debug_region(self, row, col, value, region_type=None):
         """領域のデバッグ情報をログに記録"""
         self.logger.info(f"Processing cell at row={row}, col={col}, value={value}, detected_type={region_type}")

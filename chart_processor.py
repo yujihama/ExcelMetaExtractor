@@ -1,29 +1,30 @@
-
 """
 Chart Processor Module
-Excelファイル内のグラフ要素を処理・分析するモジュール
+Excelファイル内のグラフ要素を処理するモジュール
 
 主な機能:
 - グラフデータの抽出
-- グラフ種類の判定
-- グラフデータの構造化
-- グラフの再構築
+- グラフの種類判定
+- グラフデータの再構築
+- チャートのプレビュー生成
 """
 
+from logger import Logger
+import matplotlib.pyplot as plt
+import json
 from typing import Dict, Any, List
+import os
+import tempfile
+import xml.etree.ElementTree as ET
 from openpyxl.chart import BarChart, LineChart, PieChart, ScatterChart, Reference
 from openpyxl.utils.cell import coordinate_from_string, column_index_from_string
-import tempfile
-import os
-import json
-import xml.etree.ElementTree as ET
-from logger import Logger
+
 
 class ChartProcessor:
     def __init__(self, logger: Logger):
         """
         グラフ処理クラスの初期化
-        
+
         Args:
             logger: ログ出力用のLoggerインスタンス
         """
@@ -203,11 +204,11 @@ class ChartProcessor:
                 "chartType": "",
                 "series": []
             }
-            
+
             # Get chart relationship ID
             chart_id = chart_elem.get('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id')
             self.logger.debug(f"chart_id: {chart_id}")
-            
+
             # Find and parse the chart XML file
             chart_path = None
             rels_path = 'xl/drawings/_rels/drawing1.xml.rels'
@@ -221,12 +222,12 @@ class ChartProcessor:
                             chart_path = 'xl' + rel.get('Target').replace('..', '')
                             self.logger.debug(f"Found chart_path: {chart_path}")
                             break
-            
+
             if chart_path and chart_path in excel_zip.namelist():
                 with excel_zip.open(chart_path) as chart_file:
                     chart_tree = ET.parse(chart_file)
                     chart_root = chart_tree.getroot()
-                    
+
                     # Extract title
                     title_elem = chart_root.find('.//c:title//c:tx//c:rich//a:t', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart', 'a': 'http://schemas.openxmlformats.org/drawingml/2006/main'})
                     if title_elem is not None:
@@ -254,11 +255,11 @@ class ChartProcessor:
                         "series": [],
                         "categories": []
                     }
-                    
+
                     for series in series_elements:
                         series_data = {}
                         self.logger.debug("Extracting series")
-                        
+
                         # Get series name
                         series_name = series.find('.//c:tx//c:v', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
                         if series_name is not None:
@@ -270,7 +271,7 @@ class ChartProcessor:
                         if data_ref is not None:
                             series_data["data_range"] = data_ref.text
                         self.logger.debug(f"Data range: {series_data.get('data_range', '')}")
-                            
+
                         # Get data values
                         values = series.findall('.//c:val//c:numRef//c:numCache//c:v', {'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart'})
                         if values:
@@ -286,12 +287,12 @@ class ChartProcessor:
                         self.logger.debug(f"Categories: {chart_data.get('categories', [])}")
 
                         chart_info["series"].append(series_data)
-                    
+
                     # Set chart data
                     chart_info["chart_data_json"] = json.dumps(chart_data)
                     self.logger.info(f"Complete chart info: {json.dumps(chart_info, indent=2)}")
                     self.logger.info(f"Chart data: {json.dumps(chart_data, indent=2)}")
-            
+
             return chart_info
         except Exception as e:
             self.logger.error(f"Error extracting chart info: {str(e)}")
