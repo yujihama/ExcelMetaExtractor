@@ -250,7 +250,7 @@ Respond in JSON format:
             return "シートのサマリー生成に失敗しました"
 
     def analyze_image_with_gpt4o(self, base64_image: str) -> Dict[str, Any]:
-        """GPT-4 Vision APIを使用して画像を分析"""
+        """GPT-4o APIを使用して画像を分析"""
         try:
             prompt = """
 この画像について以下の点を分析してください：
@@ -267,7 +267,7 @@ Respond in JSON format:
 """
             try:
                 # APIリクエストのデバッグ情報
-                print("\nSending request to GPT-4 Vision API...")
+                print("\nSending request to gpt-4o API...")
                 print(f"Image data length: {len(base64_image)}")
 
                 response = self.client.chat.completions.create(
@@ -289,7 +289,7 @@ Respond in JSON format:
                     response_format={"type": "json_object"})
 
                 # APIレスポンスのデバッグ情報
-                print("\nGPT-4 Vision API Response:")
+                print("\ngpt-4o API Response:")
                 print(f"Response status: Success")
                 print(
                     f"Response content: {response.choices[0].message.content}")

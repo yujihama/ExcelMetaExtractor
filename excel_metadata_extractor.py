@@ -227,7 +227,7 @@ class ExcelMetadataExtractor:
                                 if "gpt4o_analysis" in drawing:
                                     region_info["gpt4o_analysis"] = drawing["gpt4o_analysis"]
                                 else:
-                                    self.logger.info("No GPT-4 Vision analysis found for image")
+                                    self.logger.info("No gpt-4o analysis found for image")
 
                             elif drawing_type == "smartart" and "diagram_type" in drawing:
                                 region_info["diagram_type"] = drawing["diagram_type"]
