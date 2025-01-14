@@ -1,4 +1,15 @@
 
+"""
+Chart Processor Module
+Excelファイル内のグラフ要素を処理・分析するモジュール
+
+主な機能:
+- グラフデータの抽出
+- グラフ種類の判定
+- グラフデータの構造化
+- グラフの再構築
+"""
+
 from typing import Dict, Any, List
 from openpyxl.chart import BarChart, LineChart, PieChart, ScatterChart, Reference
 from openpyxl.utils.cell import coordinate_from_string, column_index_from_string
@@ -10,6 +21,12 @@ from logger import Logger
 
 class ChartProcessor:
     def __init__(self, logger: Logger):
+        """
+        グラフ処理クラスの初期化
+        
+        Args:
+            logger: ログ出力用のLoggerインスタンス
+        """
         self.logger = logger
 
     def extract_chart_data(self, workbook, output_dir):

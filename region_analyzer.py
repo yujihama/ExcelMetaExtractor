@@ -1,4 +1,15 @@
 
+"""
+Region Analyzer Module
+Excelシート内の各領域を分析し、その特性を判定するモジュール
+
+主な機能:
+- 領域の種類判定（テーブル、テキスト、図形など）
+- テーブル構造の分析
+- セルデータの抽出
+- AIを活用した領域の意味解析
+"""
+
 from typing import Dict, Any, List, Optional
 from openpyxl.utils import get_column_letter
 import json
@@ -7,9 +18,16 @@ from openai_helper import OpenAIHelper
 
 class RegionAnalyzer:
     def __init__(self, logger: Logger, openai_helper: OpenAIHelper):
+        """
+        領域分析クラスの初期化
+        
+        Args:
+            logger: ログ出力用のLoggerインスタンス
+            openai_helper: OpenAI APIを使用した分析を行うヘルパーインスタンス
+        """
         self.logger = logger
         self.openai_helper = openai_helper
-        self.MAX_CELLS_PER_ANALYSIS = 100
+        self.MAX_CELLS_PER_ANALYSIS = 100  # 一度に分析する最大セル数
 
     def analyze_cell_type(self, cell) -> str:
         if cell.value is None:
