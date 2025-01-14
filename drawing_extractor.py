@@ -265,7 +265,7 @@ class DrawingExtractor:
             self.logger.error(f"Error in _extract_connector_info: {str(e)}")
             return None
 
-    def extract_picture_info(self, pic, excel_zip, ns): 
+    def extract_picture_info(self, pic, excel_zip, ns, drawing_path): 
         try:
             name_elem = pic.find('.//xdr:nvPicPr/xdr:cNvPr', ns)
             if name_elem is not None:
