@@ -174,11 +174,19 @@ class DrawingExtractor:
                 root = tree.getroot()
                 
                 # SmartArt要素の詳細検索とログ出力
+                self.logger.debug(f"Starting SmartArt detection in file: {drawing_path}")
+                self.logger.debug(f"XML Root tag: {root.tag}")
+                
                 ns = {
                     'mc': 'http://schemas.openxmlformats.org/markup-compatibility/2006',
                     'dgm': 'http://schemas.openxmlformats.org/drawingml/2006/diagram',
                     'a': 'http://schemas.openxmlformats.org/drawingml/2006/main'
                 }
+                
+                # XML構造の全体をログ出力
+                self.logger.debug("Full XML structure:")
+                for elem in root.iter():
+                    self.logger.debug(f"Found element: {elem.tag} - {elem.attrib}")
                 
                 # 複数のパターンで検索
                 smartart_patterns = [
