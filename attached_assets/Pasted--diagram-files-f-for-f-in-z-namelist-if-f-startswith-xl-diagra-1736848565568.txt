@@ -1,0 +1,56 @@
+        diagram_files = [
+            f for f in z.namelist()
+            if f.startswith("xl/diagrams/") and f.endswith(".xml")
+        ]
+        
+        if not diagram_files:
+            print("SmartArt(ダイアグラム)に相当するファイルが見つかりませんでした。")
+            return diagram_info_list
+        
+        # 各ダイアグラムファイルをパース
+        for diag_file in diagram_files:
+            with z.open(diag_file) as f:
+                tree = ET.parse(f)
+                root = tree.getroot()
+                
+                # 名前空間の定義
+                # dgm: http://schemas.openxmlformats.org/drawingml/2006/diagram
+                # a:   http://schemas.openxmlformats.org/drawingml/2006/main
+                ns = {
+                    'dgm': 'http://schemas.openxmlformats.org/drawingml/2006/diagram',
+                    'a':   'http://schemas.openxmlformats.org/drawingml/2006/main'
+                }
+                
+                # 例: ノード情報 (dgm:pt) を取得する
+                # dgm:pt は SmartArt (ダイアグラム) 上の各「ポイント(ノード)」を表す
+                nodes = root.findall('.//dgm:pt', ns)
+                
+                # このダイアグラム全体をまとめるための辞書
+                diagram_data = {
+                    'diagram_file': diag_file,
+                    'nodes': []
+                }
+                
+                for node in nodes:
+                    # ノード ID など
+                    node_id = node.get('modelId')
+                    
+                    # このノードに含まれるテキストをすべて収集 (dgm:t)
+                    texts = []
+                    for t_elem in node.findall('.//dgm:t', ns):
+                        # テキスト要素が空の場合もあるため判定
+                        if t_elem.text:
+                            texts.append(t_elem.text)
+                    
+                    # 必要に応じて他の要素(dgm:title, dgm:descなど)を取り出す
+                    # 例: title 要素を取得
+                    title_elems = node.findall('.//dgm:title', ns)
+                    titles = [title.text for title in title_elems if title.text]
+                    
+                    diagram_data['nodes'].append({
+                        'id': node_id,
+                        'text_list': texts,
+                        'title_list': titles,
+                    })
+                
+                diagram_info_list.append(diagram_data)
