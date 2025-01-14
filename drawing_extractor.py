@@ -163,6 +163,26 @@ class DrawingExtractor:
         to_col = get_column_letter(coords["to"]["col"] + 1)
         return f"{from_col}{coords['from']['row'] + 1}:{to_col}{coords['to']['row'] + 1}"
 
+    def _get_vml_controls(self, excel_zip):
+        vml_controls = []
+        vml_files = [f for f in excel_zip.namelist() if f.startswith('xl/drawings/') and f.endswith('.vml')]
+
+        for vml_file in vml_files:
+            try:
+                with excel_zip.open(vml_file) as f:
+                    vml_content = f.read().decode('utf-8')
+                    controls = self._parse_vml_for_controls(vml_content)
+                    vml_controls.extend(controls)
+            except Exception as e:
+                self.logger.error(f"Error processing VML file {vml_file}: {str(e)}")
+                self.logger.exception(e)
+
+        return vml_controls
+
+    def _parse_vml_for_controls(self, vml_content):
+        vml_processor = VMLProcessor(self.logger)
+        return vml_processor.parse_vml_for_controls(vml_content)
+
     def extract_drawing_info(self, sheet, excel_zip, drawing_path, openai_helper) -> List[Dict[str, Any]]:
         self.logger.method_start("extract_drawing_info")
         drawing_list = []
