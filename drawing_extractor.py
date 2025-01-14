@@ -526,7 +526,6 @@ class DrawingExtractor:
 
     def _extract_diagram_data(self, excel_zip, rel_id, drawing_path):
         try:
-            # Get drawing number from the drawing path
             drawing_number = os.path.basename(drawing_path).replace('drawing', '').replace('.xml', '')
             rels_path = f'xl/drawings/_rels/drawing{drawing_number}.xml.rels'
             diagram_path = None
@@ -540,18 +539,47 @@ class DrawingExtractor:
                         if rel.get('Id') == rel_id:
                             diagram_path = 'xl/' + rel.get('Target').replace('..', '')
                             break
-            
-            if diagram_path and diagram_path in excel_zip.namelist():
-                with excel_zip.open(diagram_path) as f:
-                    tree = ET.parse(f)
-                    root = tree.getroot()
 
-                    return {
-                        "diagram_type": root.get('type', ''),
-                        "name": root.get('name', ''),
-                        "description": root.get('description', '')
-                    }
-            return None
+            if not diagram_path or diagram_path not in excel_zip.namelist():
+                self.logger.debug("SmartArt(ダイアグラム)に相当するファイルが見つかりませんでした。")
+                return None
+
+            with excel_zip.open(diagram_path) as f:
+                tree = ET.parse(f)
+                root = tree.getroot()
+
+                ns = {
+                    'dgm': 'http://schemas.openxmlformats.org/drawingml/2006/diagram',
+                    'a': 'http://schemas.openxmlformats.org/drawingml/2006/main'
+                }
+
+                nodes = root.findall('.//dgm:pt', ns)
+                diagram_data = {
+                    "diagram_type": root.get('type', ''),
+                    "name": root.get('name', ''),
+                    "description": root.get('description', ''),
+                    "diagram_file": diagram_path,
+                    "nodes": []
+                }
+
+                for node in nodes:
+                    node_id = node.get('modelId')
+                    texts = []
+                    for t_elem in node.findall('.//dgm:t', ns):
+                        if t_elem.text:
+                            texts.append(t_elem.text)
+
+                    title_elems = node.findall('.//dgm:title', ns)
+                    titles = [title.text for title in title_elems if title.text]
+
+                    diagram_data['nodes'].append({
+                        'id': node_id,
+                        'text_list': texts,
+                        'title_list': titles,
+                    })
+
+                return diagram_data
+            
         except Exception as e:
             self.logger.error(f"Error extracting diagram data: {str(e)}")
             return None
