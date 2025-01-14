@@ -526,8 +526,9 @@ class DrawingExtractor:
 
     def _extract_diagram_data(self, excel_zip, rel_id):
         try:
-            # Look up the actual path in the relationships file
-            rels_path = 'xl/drawings/_rels/drawing1.xml.rels'
+            # Get drawing number from the drawing path
+            drawing_number = os.path.basename(drawing_path).replace('drawing', '').replace('.xml', '')
+            rels_path = f'xl/drawings/_rels/drawing{drawing_number}.xml.rels'
             diagram_path = None
             
             if rels_path in excel_zip.namelist():
