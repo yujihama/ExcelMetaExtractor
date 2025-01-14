@@ -526,13 +526,21 @@ class DrawingExtractor:
 
     def _extract_diagram_data(self, excel_zip, rel_id):
         try:
-            # Extract numerical part after 'rId' in rel_id using regular expression
-            import re
-            match = re.search(r"rId(\d+)", rel_id)
-            numeric_part = match.group(1) if match else ''
-            # Use numeric part to generate xml path
-            diagram_path = f'xl/diagrams/data{numeric_part}.xml'
-            print(f"Extracting diagram data from path: {diagram_path}")
+            # Look up the actual path in the relationships file
+            rels_path = 'xl/drawings/_rels/drawing1.xml.rels'
+            diagram_path = None
+            
+            if rels_path in excel_zip.namelist():
+                with excel_zip.open(rels_path) as rels_file:
+                    rels_tree = ET.parse(rels_file)
+                    rels_root = rels_tree.getroot()
+                    
+                    for rel in rels_root.findall('.//{http://schemas.openxmlformats.org/package/2006/relationships}Relationship'):
+                        if rel.get('Id') == rel_id:
+                            diagram_path = 'xl/' + rel.get('Target').replace('..', '')
+                            break
+            
+            if diagram_path and diagram_path in excel_zip.namelist():
             if diagram_path in excel_zip.namelist():
                 with excel_zip.open(diagram_path) as f:
                     tree = ET.parse(f)
