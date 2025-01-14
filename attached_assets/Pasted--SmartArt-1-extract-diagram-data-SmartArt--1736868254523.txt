@@ -1,0 +1,106 @@
+以下の点が主な原因で、同じ SmartArt 情報が設定されてしまっています。
+
+1. **`_extract_diagram_data` メソッド内で、複数の SmartArt を正しく区別していない**  
+   - `diagram_files` から「先頭」のファイル（`if "data" in diag_file.lower() or "dm" in diag_file.lower():` でヒットした最初のファイル）を無条件に `diagram_path` にしているため、複数 SmartArt がある場合でも同じ XML ファイルを使ってしまうケースがある。  
+   - または `rel_id` と無関係に「最初に見つかった」ファイルを使っており、結果的に同じ図式データを使い回している。
+
+2. **複数のリレーションを個別に処理していない**  
+   - `_extract_diagram_data` 内のリレーション読み取りロジックが単一の `rel_id` しか見ないようになっており、複数 SmartArt が存在する場合に正しく区別できていない。
+
+---
+
+## 改善のポイント
+
+### 1. 先に “リレーション” を用いた方式で確実にファイルを特定し、不要な「`diagram_files` の先頭をとる」ロジックを廃止する
+
+SmartArt の `<dgm:relIds>` が指し示す `dm`（data model）用の `rel_id` は、  
+`xl/drawings/_rels/drawing{n}.xml.rels`  
+ファイルの `<Relationship>` をたどると正確に参照先の XML ファイルが分かるはずです。
+
+```python
+def _extract_diagram_data(self, excel_zip, rel_id, drawing_path):
+    try:
+        # drawing{n}.xml.rels を開いて rel_id に紐づく Target を探す
+        drawing_number = os.path.basename(drawing_path).replace('drawing', '').replace('.xml', '')
+        rels_path = f'xl/drawings/_rels/drawing{drawing_number}.xml.rels'
+
+        diagram_path = None
+        if rels_path in excel_zip.namelist():
+            with excel_zip.open(rels_path) as rels_file:
+                rels_tree = ET.parse(rels_file)
+                rels_root = rels_tree.getroot()
+
+                for rel in rels_root.findall(
+                    './/{http://schemas.openxmlformats.org/package/2006/relationships}Relationship'
+                ):
+                    if rel.get('Id') == rel_id:
+                        # ../ に置き換えがあれば修正しつつ絶対パスを作成
+                        target = rel.get('Target').replace('..', 'xl')
+                        # 先頭に 'xl/' が付いていない場合は付与するなどの処理
+                        if not target.startswith('xl/'):
+                            target = 'xl/' + target
+                        diagram_path = target
+                        break
+
+        if not diagram_path or diagram_path not in excel_zip.namelist():
+            self.logger.debug("SmartArt(ダイアグラム)に相当するファイルが見つかりませんでした。")
+            return None
+
+        # diagram_path が特定できたら、その XML を開いて解析する
+        with excel_zip.open(diagram_path) as f:
+            tree = ET.parse(f)
+            root = tree.getroot()
+
+            ns = {
+                'dgm': 'http://schemas.openxmlformats.org/drawingml/2006/diagram',
+                'a':   'http://schemas.openxmlformats.org/drawingml/2006/main'
+            }
+
+            diagram_data = {
+                "diagram_type": root.get('type', ''),
+                "name": root.get('name', ''),
+                "description": root.get('description', ''),
+                "diagram_file": diagram_path,
+                "nodes": []
+            }
+
+            nodes = root.findall('.//dgm:pt', ns)
+            for node in nodes:
+                node_id = node.get('modelId')
+                # すべての a:t 要素を検索してテキストを抽出
+                all_a_t_elems = node.findall('.//a:t', ns)
+                texts = [el.text for el in all_a_t_elems if el.text]
+                diagram_data['nodes'].append({
+                    'id': node_id,
+                    'text_list': texts,
+                })
+
+            return diagram_data
+
+    except Exception as e:
+        self.logger.error(f"Error extracting diagram data: {str(e)}")
+        return None
+```
+
+- **ポイント:** 「`diagram_files` のなかで `"data"` や `"dm"` を含む名前のファイルを無条件に `diagram_path` にする」部分は、複数の SmartArt が混在するシナリオで想定外のファイルを拾う原因になるので削除します。  
+- 代わりに、必ずリレーション (`drawing{n}.xml.rels`) をたどって `rel_id` と一致する `<Relationship>` の `Target` を用います。
+
+### 2. リレーションごとに SmartArt 情報を生成する
+
+- `_extract_smartart_info` で複数 `<dgm:relIds>` が見つかったりしてもループできるようになっていれば、各 `rel_id` ごとに `_extract_diagram_data` を呼び出す形にし、戻り値を個別のオブジェクトとしてリストに追加します。
+- もし一つの `anchor` に複数の SmartArt がある場合でも、同じ処理を繰り返し呼ぶだけで個別の情報が生成されます。
+
+### 3. 使い回ししていないか確認
+
+- 取得した `dict` を都度 `append` するときに、同じオブジェクトを再利用していないかチェックします。  
+- Python では可変オブジェクト（辞書やリスト）を再利用すると、あとで上書きされてしまう場合があるため、`dict(...)` やシャローコピー・ディープコピーを行うなどして、**毎回新しいインスタンス** を生成することが大切です。
+
+---
+
+## まとめ
+
+- **リレーション (`.rels`) をベースに `rel_id` ごとに正確なファイルパスを求める**  
+- **“最初に見つかったファイルを使う” といった汎用ロジックを排除し、SmartArt ごとにリレーションをたどって固有のファイルを開く**  
+- **辞書オブジェクトの使い回しに注意し、各 SmartArt で確実に別インスタンスを使う**  
+
+このように修正することで、1 つのシートに複数存在する SmartArt を正しく区別し、それぞれ個別の情報として抽出できるようになります。
