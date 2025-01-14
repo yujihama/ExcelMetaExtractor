@@ -460,7 +460,7 @@ class DrawingExtractor:
                 'http://schemas.openxmlformats.org/drawingml/2006/diagram'
             })
             if rel_ids is not None:
-                print(f"Found relIds: {rel_ids.attrib}")
+                # print(f"Found relIds: {rel_ids.attrib}")
                 data_model_rel = rel_ids.get(
                     '{http://schemas.openxmlformats.org/officeDocument/2006/relationships}dm'
                 )
@@ -473,13 +473,13 @@ class DrawingExtractor:
 
                 # データモデルの解析
                 if data_model_rel:
-                    print(
-                        f"Extracting diagram data for rel_id: {data_model_rel}"
-                    )
+                    # print(
+                    #     f"Extracting diagram data for rel_id: {data_model_rel}"
+                    # )
                     diagram_data = self._extract_diagram_data(
                         excel_zip, data_model_rel, drawing_path)
                     if diagram_data:
-                        print(f"Diagram data extracted: {diagram_data}")
+                        # print(f"Diagram data extracted: {diagram_data}")
                         smartart_info.update(diagram_data)
 
                 # スタイル情報の解析
