@@ -2,7 +2,7 @@ import os
 import json
 import traceback
 from typing import Dict, Any, Union, List
-from openai import OpenAI
+from openai import OpenAI, AzureOpenAI
 import streamlit as st
 from dotenv import load_dotenv
 from logger import Logger
@@ -12,8 +12,19 @@ class OpenAIHelper:
 
     def __init__(self):
         load_dotenv()
-        self.client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-        self.model = "gpt-4o"
+        self.api_type = os.environ.get("OPENAI_API_TYPE", "openai")  # "openai" or "azure"
+        
+        if self.api_type == "azure":
+            self.client = AzureOpenAI(
+                api_key=os.environ.get("AZURE_OPENAI_API_KEY"),
+                api_version=os.environ.get("AZURE_OPENAI_API_VERSION", "2024-02-15-preview"),
+                azure_endpoint=os.environ.get("AZURE_OPENAI_ENDPOINT")
+            )
+            self.model = os.environ.get("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4")
+        else:
+            self.client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+            self.model = os.environ.get("OPENAI_MODEL_NAME", "gpt-4")
+            
         self.logger = Logger()
 
     def summarize_region(self, region: Dict[str, Any]) -> str:

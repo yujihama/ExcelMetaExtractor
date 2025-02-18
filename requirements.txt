@@ -3,10 +3,7 @@ openpyxl>=3.1.5
 pandas>=2.2.3
 streamlit>=1.41.1
 matplotlib>=3.8.2
-python-dotenv
-numpy
-openai
-openai
-trafilatura
-numpy
-python-dotenv
+python-dotenv>=1.0.0
+numpy>=1.24.0
+trafilatura>=1.6.1
+azure-openai>=1.0.0

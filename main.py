@@ -337,8 +337,11 @@ def main():
 
                 # メタデータJSONファイルの自動生成
                 json_str = json.dumps(metadata, indent=2, ensure_ascii=False)
+                output_dir = "output"
+                if not os.path.exists(output_dir):
+                    os.makedirs(output_dir)
                 output_path = os.path.join(
-                    "output", f"{uploaded_file.name}_metadata.json")
+                    output_dir, f"{uploaded_file.name}_metadata.json")
                 with open(output_path, "w", encoding="utf-8") as file:
                     file.write(json_str)
                 st.success(f"メタデータJSONファイルが保存されました: {output_path}")
